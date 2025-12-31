@@ -163,6 +163,7 @@ app.include_router(records.router)
 app.include_router(batch_monitor.router)
 app.include_router(record_details.router)
 app.include_router(call_monitor.router)
+app.include_router(auto_queue.router)
 
 
 if __name__ == "__main__":
