@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import logging
 
 # Import routers
-from api import verifications, twilio_webhooks, csv_import, usage, auth, settings as settings_api, records, batch_monitor, record_details, call_monitor
+from api import verifications, twilio_webhooks, csv_import, usage, auth, settings as settings_api, records, batch_monitor, record_details, call_monitor, auto_queue
 from api.auth import get_current_user
 from database import init_db
 from config import settings

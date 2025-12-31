@@ -218,6 +218,14 @@ class CallOrchestrator:
                 "summary": summary
             })
             
+            # If account is verified, hang up immediately and move to next
+            if result.account_exists and result.call_outcome == CallOutcome.VERIFIED:
+                logger.info(f"✅ Account verified for {verification.verification_id} - ending call immediately")
+                monitor.add_event(call_sid, "auto_hangup", "Account verified - terminating call to save time")
+                
+                from services.auto_verification_queue import handle_verification_confirmed
+                handle_verification_confirmed(self.db, call_sid, verification.verification_id)
+            
             # Determine if we should store transcript
             transcript_to_store = None
             if settings.enable_transcription and recording_consent_given:
