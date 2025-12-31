@@ -240,12 +240,15 @@ class TwilioService:
             }
 
 
-# Global Twilio service instance - will be initialized with db when needed
-twilio_service = None
+# Global Twilio service instance - lazy initialization
+_twilio_service = None
 
 def get_twilio_service(db: Session = None) -> TwilioService:
     """Get or create Twilio service instance with optional database for runtime settings."""
-    global twilio_service
-    if twilio_service is None or db is not None:
-        twilio_service = TwilioService(db)
-    return twilio_service
+    global _twilio_service
+    if _twilio_service is None or db is not None:
+        _twilio_service = TwilioService(db)
+    return _twilio_service
+
+# Initialize global instance on module import
+twilio_service = get_twilio_service()
