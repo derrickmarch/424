@@ -2,12 +2,12 @@ services:
   # Web Service - FastAPI Application
   - type: web
     name: account-verifier
-    runtime: python
+    env: python
     region: oregon  # Change to your preferred region (oregon, frankfurt, singapore, etc.)
     plan: free  # Free tier
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    runtimeVersion: "3.11.9"  # Force Python 3.11.9 (3.13 has psycopg2 issues)
+    pythonVersion: "3.11.9"  # Force Python 3.11.9 (3.13 has psycopg2 issues)
     envVars:
       # App Configuration
       - key: APP_HOST
