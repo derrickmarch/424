@@ -2,7 +2,7 @@ services:
   # Web Service - FastAPI Application
   - type: web
     name: account-verifier
-    env: python
+    runtime: python
     region: oregon  # Change to your preferred region (oregon, frankfurt, singapore, etc.)
     plan: free  # Free tier
     buildCommand: pip install -r requirements.txt
