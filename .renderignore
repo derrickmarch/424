@@ -1,0 +1,14 @@
+# Files to ignore during Render deployment
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.local
+tmp_rovodev_*
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+.vscode/
+.idea/

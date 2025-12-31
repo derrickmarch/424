@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Account Verifier{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body data-page="{% block page_name %}{% endblock %}">
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="logo">📞 Account Verifier</a>
+            <ul class="nav-links">
+                <li><a href="/" class="{% if page == 'dashboard' %}active{% endif %}">Dashboard</a></li>
+                <li><a href="/verifications" class="{% if page == 'verifications' %}active{% endif %}">Verifications</a></li>
+                <li><a href="/records" class="{% if page == 'records' %}active{% endif %}">Records</a></li>
+                <li><a href="/add-verification" class="{% if page == 'add' %}active{% endif %}">Add New</a></li>
+                <li><a href="/csv" class="{% if page == 'csv' %}active{% endif %}">CSV Import</a></li>
+                <li><a href="/settings" class="{% if page == 'settings' %}active{% endif %}">Settings</a></li>
+                <li><button onclick="logout()" class="btn-logout" style="background: #e53e3e; color: white; border: none; padding: 0.5rem 1rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.875rem; font-weight: 500;">🚪 Logout</button></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/record_viewer.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

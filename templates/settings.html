@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Account Verifier{% endblock %}
+{% block page_name %}settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Settings</h1>
+    <p>Configure your account verifier system</p>
+</div>
+
+<div class="alert alert-info">
+    <strong>Note:</strong> Settings are configured via the <code>.env</code> file. 
+    After making changes, restart the application for them to take effect.
+</div>
+
+<div class="card">
+    <div class="card-header">🎯 Quick Settings</div>
+    
+    <div id="editable-settings">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">🧪 Test Mode</div>
+    
+    <div class="alert alert-info">
+        <strong>Test Mode:</strong> When enabled, the system uses mock services instead of real Twilio and OpenAI APIs. 
+        Perfect for testing without using credits or making actual calls.
+    </div>
+    
+    <div class="form-group">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <label class="form-label" style="margin: 0;">System Mode:</label>
+            <div id="current-mode-badge" class="badge" style="font-size: 14px; padding: 8px 15px;">
+                <span class="spinner" style="width: 16px; height: 16px;"></span>
+            </div>
+            <button type="button" id="toggle-mode-btn" class="btn btn-primary" onclick="toggleMode()" disabled>
+                🔄 Toggle Mode
+            </button>
+        </div>
+        <div class="form-help">Toggle between Test Mode (mock services) and Live Mode (real APIs)</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Current Configuration</div>
+    
+    <div id="current-settings">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">📝 Agent Instructions</div>
+    
+    <div class="form-group">
+        <label class="form-label">Custom AI Agent Instructions</label>
+        <textarea 
+            id="agent-instructions" 
+            class="form-input" 
+            rows="6" 
+            placeholder="Enter custom instructions for the AI agent (optional)...&#10;&#10;Example: Be polite and professional. Always confirm the account number before proceeding."
+        ></textarea>
+        <div class="form-help">These instructions will be used by the AI agent during verification calls. Leave empty to use default instructions.</div>
+    </div>
+    
+    <button type="button" class="btn btn-primary" onclick="saveAgentInstructions()">
+        💾 Save Instructions
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">🔐 Admin Credentials</div>
+    
+    <div class="form-group">
+        <label class="form-label">Current Username</label>
+        <input type="text" id="current-username" class="form-input" readonly>
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">Current Password</label>
+        <input type="password" id="current-password" class="form-input" placeholder="Enter current password to make changes" required>
+        <div class="form-help">Required to verify your identity before making changes</div>
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">New Username (optional)</label>
+        <input type="text" id="new-username" class="form-input" placeholder="Leave empty to keep current username">
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">New Password (optional)</label>
+        <input type="password" id="new-password" class="form-input" placeholder="Leave empty to keep current password">
+    </div>
+    
+    <button type="button" class="btn btn-primary" onclick="changeCredentials()">
+        🔑 Update Credentials
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">🔑 API Keys & Credentials</div>
+    
+    <div class="alert alert-warning">
+        <strong>💡 Pro Tip:</strong> You can now edit API keys directly here! Changes take effect immediately without restarting.
+    </div>
+    
+    <form id="api-keys-form">
+        <div class="form-group">
+            <label class="form-label">Twilio Account SID</label>
+            <input type="text" id="twilio-sid" class="form-input" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxx">
+            <div class="form-help">Get from: <a href="https://console.twilio.com" target="_blank">console.twilio.com</a></div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Twilio Auth Token</label>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="twilio-token" class="form-input" placeholder="••••••••••••••••" style="flex: 1;">
+                <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('twilio-token')">👁️</button>
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">Twilio Phone Number</label>
+            <input type="text" id="twilio-phone" class="form-input" placeholder="+1234567890">
+            <div class="form-help">Format: +1234567890 (include country code)</div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">OpenAI API Key</label>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="openai-key" class="form-input" placeholder="sk-••••••••••••••••" style="flex: 1;">
+                <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('openai-key')">👁️</button>
+            </div>
+            <div class="form-help">Get from: <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></div>
+        </div>
+        
+        <div class="form-group">
+            <label class="form-label">OpenAI Model</label>
+            <select id="openai-model" class="form-input">
+                <option value="gpt-4-turbo-preview">GPT-4 Turbo (Recommended)</option>
+                <option value="gpt-4">GPT-4</option>
+                <option value="gpt-3.5-turbo">GPT-3.5 Turbo (Cheaper)</option>
+            </select>
+            <div class="form-help">Choose the AI model for conversations</div>
+        </div>
+        
+        <div style="display: flex; gap: 1rem;">
+            <button type="submit" class="btn btn-primary" style="flex: 1;">
+                🔑 Save API Keys
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="loadAPIKeys()" style="flex: 1;">
+                🔄 Reload
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
+    <div class="card-header">⚙️ Auto-Calling Settings</div>
+    
+    <div class="form-group">
+        <label class="form-label">Enable Auto-Calling</label>
+        <input type="text" class="form-input" value="Configured in .env file" readonly>
+        <div class="form-help">Set <code>ENABLE_AUTO_CALLING=true</code> or <code>false</code></div>
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">Loop Interval (Minutes)</label>
+        <input type="text" class="form-input" value="Configured in .env file" readonly>
+        <div class="form-help">Set <code>CALL_LOOP_INTERVAL_MINUTES=5</code></div>
+    </div>
+    
+    <div class="form-group">
+        <label class="form-label">Batch Size Per Loop</label>
+        <input type="text" class="form-input" value="Configured in .env file" readonly>
+        <div class="form-help">Set <code>BATCH_SIZE_PER_LOOP=10</code></div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">📝 How to Update Settings</div>
+    
+    <ol style="margin-left: 1.5rem;">
+        <li>Open the <code>.env</code> file in the <code>account_verifier</code> folder</li>
+        <li>Update the values you want to change</li>
+        <li>Save the file</li>
+        <li>Restart the application: Stop it (Ctrl+C) and run <code>python main.py</code> again</li>
+    </ol>
+    
+    <h4 style="margin-top: 1.5rem;">Example .env file:</h4>
+    <div style="background: var(--gray-50); padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: monospace; font-size: 0.875rem;">
+# Twilio Configuration<br>
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<br>
+TWILIO_AUTH_TOKEN=your_auth_token_here<br>
+TWILIO_PHONE_NUMBER=+1234567890<br>
+TWILIO_WEBHOOK_BASE_URL=https://your-domain.com<br>
+<br>
+# OpenAI Configuration<br>
+OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx<br>
+<br>
+# Auto-Calling Settings<br>
+ENABLE_AUTO_CALLING=true<br>
+CALL_LOOP_INTERVAL_MINUTES=5<br>
+BATCH_SIZE_PER_LOOP=10<br>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">🚀 Quick Links</div>
+    <div class="btn-group">
+        <a href="https://console.twilio.com" target="_blank" class="btn btn-secondary">
+            Open Twilio Console
+        </a>
+        <a href="https://platform.openai.com/api-keys" target="_blank" class="btn btn-secondary">
+            Open OpenAI Keys
+        </a>
+        <a href="/health" target="_blank" class="btn btn-primary">
+            Check System Health
+        </a>
+    </div>
+</div>
+
+<script>
+async function loadEditableSettings() {
+    try {
+        const settings = await fetch('/api/settings/').then(r => r.json());
+        const container = document.getElementById('editable-settings');
+        
+        const editableKeys = [
+            'citibank_phone_number',
+            'accounts_per_call',
+            'call_timeout_seconds',
+            'enable_auto_calling',
+            'call_loop_interval_minutes',
+            'batch_size_per_loop'
+        ];
+        
+        const editableSettings = settings.filter(s => editableKeys.includes(s.setting_key));
+        
+        let html = '<form id="settings-form">';
+        
+        for (const setting of editableSettings) {
+            const isBoolean = setting.setting_type === 'bool';
+            const label = setting.setting_key.split('_').map(w => 
+                w.charAt(0).toUpperCase() + w.slice(1)
+            ).join(' ');
+            
+            html += `
+                <div class="form-group">
+                    <label class="form-label">${label}</label>
+                    ${isBoolean ? `
+                        <select class="form-input" data-key="${setting.setting_key}">
+                            <option value="true" ${setting.setting_value === 'true' ? 'selected' : ''}>Enabled</option>
+                            <option value="false" ${setting.setting_value === 'false' ? 'selected' : ''}>Disabled</option>
+                        </select>
+                    ` : `
+                        <input 
+                            type="${setting.setting_type === 'int' ? 'number' : 'text'}" 
+                            class="form-input" 
+                            value="${setting.setting_value}"
+                            data-key="${setting.setting_key}"
+                        >
+                    `}
+                    <div class="form-help">${setting.description || ''}</div>
+                </div>
+            `;
+        }
+        
+        html += `
+            <div style="display: flex; gap: 1rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">
+                    💾 Save Settings
+                </button>
+                <button type="button" class="btn btn-secondary" onclick="loadEditableSettings()" style="flex: 1;">
+                    🔄 Reset
+                </button>
+            </div>
+        `;
+        html += '</form>';
+        
+        container.innerHTML = html;
+        
+        // Attach form submit handler
+        document.getElementById('settings-form').addEventListener('submit', saveSettings);
+        
+    } catch (error) {
+        document.getElementById('editable-settings').innerHTML = 
+            '<div class="alert alert-danger">Failed to load settings. Please login.</div>';
+    }
+}
+
+async function saveSettings(e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const inputs = form.querySelectorAll('[data-key]');
+    const updates = [];
+    
+    for (const input of inputs) {
+        updates.push({
+            key: input.dataset.key,
+            value: input.value
+        });
+    }
+    
+    try {
+        showSpinner();
+        
+        for (const update of updates) {
+            await fetch(`/api/settings/${update.key}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    setting_key: update.key,
+                    setting_value: update.value
+                })
+            });
+        }
+        
+        hideSpinner();
+        showAlert('Settings saved successfully!', 'success');
+        
+        // Reload after 1 second
+        setTimeout(() => {
+            loadEditableSettings();
+            loadSettings();
+        }, 1000);
+        
+    } catch (error) {
+        hideSpinner();
+        showAlert('Failed to save settings: ' + error.message, 'danger');
+    }
+}
+
+async function loadSettings() {
+    try {
+        const health = await fetch('/health').then(r => r.json());
+        const container = document.getElementById('current-settings');
+        
+        container.innerHTML = `
+            <div class="form-group">
+                <strong>System Status:</strong> 
+                <span class="badge badge-${health.status === 'healthy' ? 'success' : 'danger'}">
+                    ${health.status}
+                </span>
+            </div>
+            <div class="form-group">
+                <strong>Environment:</strong> ${health.environment}
+            </div>
+            <div class="form-group">
+                <strong>Auto-Calling Enabled:</strong> 
+                <span class="badge badge-${health.auto_calling_enabled ? 'success' : 'gray'}">
+                    ${health.auto_calling_enabled ? 'Yes' : 'No'}
+                </span>
+            </div>
+            <div class="form-group">
+                <strong>Scheduler Running:</strong> 
+                <span class="badge badge-${health.scheduler_running ? 'success' : 'danger'}">
+                    ${health.scheduler_running ? 'Yes' : 'No'}
+                </span>
+            </div>
+        `;
+    } catch (error) {
+        document.getElementById('current-settings').innerHTML = 
+            '<div class="alert alert-danger">Failed to load settings</div>';
+    }
+}
+
+function showSpinner() {
+    // Implement or use existing spinner function
+}
+
+function hideSpinner() {
+    // Implement or use existing spinner function
+}
+
+function showAlert(message, type) {
+    // Implement or use existing alert function
+    alert(message);
+}
+
+async function loadAgentInstructions() {
+    try {
+        // Fetch current setting
+        const res = await fetch('/api/settings/agent_instructions');
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('agent-instructions').value = data.setting_value || '';
+        } else if (res.status === 404) {
+            document.getElementById('agent-instructions').value = '';
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+async function saveAgentInstructions() {
+    try {
+        const value = document.getElementById('agent-instructions').value;
+        await fetch('/api/settings/agent_instructions', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ setting_key: 'agent_instructions', setting_value: value })
+        });
+        alert('Instructions saved. New calls will use them.');
+    } catch (e) {
+        alert('Failed to save instructions');
+    }
+}
+
+async function loadCurrentUser() {
+    try {
+        const res = await fetch('/api/auth/me');
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('current-username').value = data.username;
+        }
+    } catch (e) { }
+}
+
+async function changeCredentials() {
+    const payload = {
+        current_password: document.getElementById('current-password').value,
+        new_username: document.getElementById('new-username').value || null,
+        new_password: document.getElementById('new-password').value || null,
+    };
+    try {
+        const res = await fetch('/api/auth/change_credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert('Credentials updated');
+            await loadCurrentUser();
+            document.getElementById('current-password').value = '';
+            document.getElementById('new-password').value = '';
+            document.getElementById('new-username').value = '';
+        } else {
+            alert(data.detail || 'Failed to update');
+        }
+    } catch (e) {
+        alert('Failed to update credentials');
+    }
+}
+
+async function loadCurrentMode() {
+    try {
+        const res = await fetch('/api/settings/mode');
+        if (res.ok) {
+            const data = await res.json();
+            const badge = document.getElementById('current-mode-badge');
+            const btn = document.getElementById('toggle-mode-btn');
+            
+            if (data.test_mode) {
+                badge.innerHTML = '🧪 TEST MODE';
+                badge.className = 'badge badge-warning';
+            } else {
+                badge.innerHTML = '📞 LIVE MODE';
+                badge.className = 'badge badge-success';
+            }
+            
+            btn.disabled = false;
+        }
+    } catch (e) {
+        console.error('Failed to load mode:', e);
+    }
+}
+
+async function toggleMode() {
+    if (!confirm('⚠️ This will toggle between Test Mode and Live Mode. The application must be restarted for changes to take effect. Continue?')) {
+        return;
+    }
+    
+    try {
+        const btn = document.getElementById('toggle-mode-btn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Toggling...';
+        
+        const res = await fetch('/api/settings/mode/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+            alert('✅ ' + data.message);
+            await loadCurrentMode();
+        } else {
+            alert('❌ Failed to toggle mode: ' + (data.detail || 'Unknown error'));
+            btn.disabled = false;
+            btn.innerHTML = '🔄 Toggle Mode';
+        }
+    } catch (e) {
+        alert('❌ Failed to toggle mode: ' + e.message);
+        document.getElementById('toggle-mode-btn').disabled = false;
+        document.getElementById('toggle-mode-btn').innerHTML = '🔄 Toggle Mode';
+    }
+}
+
+function togglePasswordVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+
+async function loadAPIKeys() {
+    try {
+        const response = await fetch('/api/settings/');
+        const settings = await response.json();
+        
+        // Map settings to form fields
+        const settingsMap = {};
+        settings.forEach(s => {
+            settingsMap[s.setting_key] = s.setting_value;
+        });
+        
+        document.getElementById('twilio-sid').value = settingsMap['twilio_account_sid'] || '';
+        document.getElementById('twilio-token').value = settingsMap['twilio_auth_token'] || '';
+        document.getElementById('twilio-phone').value = settingsMap['twilio_phone_number'] || '';
+        document.getElementById('openai-key').value = settingsMap['openai_api_key'] || '';
+        document.getElementById('openai-model').value = settingsMap['openai_model'] || 'gpt-4-turbo-preview';
+        
+    } catch (error) {
+        console.error('Failed to load API keys:', error);
+    }
+}
+
+async function saveAPIKeys(e) {
+    e.preventDefault();
+    
+    const updates = [
+        { key: 'twilio_account_sid', value: document.getElementById('twilio-sid').value },
+        { key: 'twilio_auth_token', value: document.getElementById('twilio-token').value },
+        { key: 'twilio_phone_number', value: document.getElementById('twilio-phone').value },
+        { key: 'openai_api_key', value: document.getElementById('openai-key').value },
+        { key: 'openai_model', value: document.getElementById('openai-model').value }
+    ];
+    
+    try {
+        // Show confirmation
+        if (!confirm('⚠️ Save these API keys? Changes take effect immediately for new calls.')) {
+            return;
+        }
+        
+        for (const update of updates) {
+            if (!update.value) continue; // Skip empty values
+            
+            await fetch(`/api/settings/${update.key}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    setting_key: update.key,
+                    setting_value: update.value
+                })
+            });
+        }
+        
+        alert('✅ API Keys saved successfully! They will be used for all new calls.');
+        
+        // Reload to show masked values
+        loadAPIKeys();
+        
+    } catch (error) {
+        alert('❌ Failed to save API keys: ' + error.message);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadEditableSettings();
+    loadSettings();
+    loadAgentInstructions();
+    loadCurrentUser();
+    loadCurrentMode();
+    loadAPIKeys();
+    
+    // Attach API keys form submit
+    document.getElementById('api-keys-form').addEventListener('submit', saveAPIKeys);
+});
+</script>
+{% endblock %}

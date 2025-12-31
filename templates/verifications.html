@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Verifications - Account Verifier{% endblock %}
+{% block page_name %}verifications{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>All Verifications</h1>
+    <p>View and manage your account verifications</p>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="card-header" style="margin-bottom: 0;">Verification List</div>
+        <div class="btn-group">
+            <a href="/add-verification" class="btn btn-primary btn-sm">➕ Add New</a>
+            <button class="btn btn-secondary btn-sm" onclick="location.reload()">🔄 Refresh</button>
+            <button class="btn btn-success btn-sm" onclick="downloadCSV()">📥 Export CSV</button>
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Verification ID</th>
+                    <th>Customer Name</th>
+                    <th>Customer Phone</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="verifications-tbody">
+                <tr>
+                    <td colspan="7" style="text-align: center;">
+                        <div class="spinner"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for Verification Details -->
+<div id="verification-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">Verification Details</div>
+        <div id="verification-details"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}

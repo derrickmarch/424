@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block title %}Customer Records - Account Verifier{% endblock %}
+{% block page_name %}records{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Customer Records</h1>
+    <p>View and manage Citibank customer verification records</p>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div class="card-header" style="margin-bottom: 0;">Records List</div>
+        <div class="btn-group">
+            <button class="btn btn-secondary btn-sm" onclick="location.reload()">🔄 Refresh</button>
+            <button class="btn btn-success btn-sm" onclick="exportRecordsCSV()">📥 Export CSV</button>
+            <button class="btn btn-primary btn-sm" onclick="startBatchProcessing()">🚀 Start Batch</button>
+        </div>
+    </div>
+    
+    <!-- Filter Section -->
+    <div style="margin-bottom: 1rem; display: flex; gap: 1rem; align-items: center;">
+        <label>Filter by Status:</label>
+        <select id="status-filter" class="form-control" style="max-width: 200px;" onchange="loadRecords()">
+            <option value="">All Records</option>
+            <option value="unchecked">Unchecked</option>
+            <option value="valid">Valid</option>
+            <option value="invalid">Invalid</option>
+            <option value="checking">Checking</option>
+            <option value="failed">Failed</option>
+        </select>
+        <span id="record-count" style="color: #666;"></span>
+    </div>
+    
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Customer Name</th>
+                    <th>SSN</th>
+                    <th>Credit Card</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="records-tbody">
+                <tr>
+                    <td colspan="7" style="text-align: center;">
+                        <div class="spinner"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal for Record Details -->
+<div id="record-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">Record Details</div>
+        <div id="record-details"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('record-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Edit Record -->
+<div id="edit-record-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">Edit Record</div>
+        <form id="edit-record-form" onsubmit="saveRecord(event)">
+            <input type="hidden" id="edit-record-id">
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-customer-id">Customer ID:</label>
+                <input type="text" id="edit-customer-id" class="form-control">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-customer-name">Customer Name:</label>
+                <input type="text" id="edit-customer-name" class="form-control">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-ssn">SSN:</label>
+                <input type="text" id="edit-ssn" class="form-control" placeholder="123-45-6789">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-credit-card">Credit Card Number:</label>
+                <input type="text" id="edit-credit-card" class="form-control">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-email">Email:</label>
+                <input type="email" id="edit-email" class="form-control">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-phone">Phone:</label>
+                <input type="text" id="edit-phone" class="form-control">
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-address">Address:</label>
+                <textarea id="edit-address" class="form-control" rows="2"></textarea>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-notes">Notes:</label>
+                <textarea id="edit-notes" class="form-control" rows="3"></textarea>
+            </div>
+            
+            <div style="margin-bottom: 1rem;">
+                <label for="edit-priority">Priority:</label>
+                <input type="number" id="edit-priority" class="form-control" min="0" value="0">
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-record-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+let currentRecords = [];
+
+// Load records on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadRecords();
+});
+
+async function loadRecords() {
+    const tbody = document.getElementById('records-tbody');
+    const statusFilter = document.getElementById('status-filter').value;
+    const recordCount = document.getElementById('record-count');
+    
+    try {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;"><div class="spinner"></div></td></tr>';
+        
+        let url = '/api/records/';
+        if (statusFilter) {
+            url += `?status_filter=${statusFilter}`;
+        }
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load records');
+        }
+        
+        const records = await response.json();
+        currentRecords = records;
+        
+        if (records.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #666;">No records found</td></tr>';
+            recordCount.textContent = '0 records';
+            return;
+        }
+        
+        recordCount.textContent = `${records.length} record${records.length !== 1 ? 's' : ''}`;
+        
+        tbody.innerHTML = records.map(record => `
+            <tr>
+                <td>${record.record_id}</td>
+                <td>${record.customer_name || 'N/A'}</td>
+                <td>${record.ssn ? maskSSN(record.ssn) : 'N/A'}</td>
+                <td>${record.credit_card_number ? '****' + record.credit_card_number.slice(-4) : 'N/A'}</td>
+                <td><span class="badge badge-${getStatusColor(record.status)}">${record.status}</span></td>
+                <td>${record.attempt_count}</td>
+                <td>
+                    <button class="btn btn-sm btn-secondary" onclick="viewRecord(${record.record_id})">👁️ View</button>
+                    <button class="btn btn-sm btn-primary" onclick="editRecord(${record.record_id})">✏️ Edit</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteRecord(${record.record_id}, '${record.customer_name || 'this record'}')">🗑️ Delete</button>
+                </td>
+            </tr>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Error loading records:', error);
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: red;">Error loading records</td></tr>';
+        showNotification('Failed to load records', 'error');
+    }
+}
+
+function maskSSN(ssn) {
+    // Mask SSN to show only last 4 digits: XXX-XX-1234
+    if (!ssn) return 'N/A';
+    const parts = ssn.split('-');
+    if (parts.length === 3) {
+        return `XXX-XX-${parts[2]}`;
+    }
+    return 'XXX-XX-' + ssn.slice(-4);
+}
+
+function getStatusColor(status) {
+    const colors = {
+        'unchecked': 'secondary',
+        'valid': 'success',
+        'invalid': 'danger',
+        'checking': 'warning',
+        'failed': 'danger'
+    };
+    return colors[status] || 'secondary';
+}
+
+async function viewRecord(recordId) {
+    try {
+        const response = await fetch(`/api/records/${recordId}`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load record details');
+        }
+        
+        const record = await response.json();
+        
+        const detailsHtml = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <div><strong>Record ID:</strong> ${record.record_id}</div>
+                <div><strong>Customer ID:</strong> ${record.customer_id || 'N/A'}</div>
+                <div><strong>Name:</strong> ${record.customer_name || 'N/A'}</div>
+                <div><strong>Status:</strong> <span class="badge badge-${getStatusColor(record.status)}">${record.status}</span></div>
+                <div><strong>SSN:</strong> ${record.ssn || 'N/A'}</div>
+                <div><strong>Credit Card:</strong> ${record.credit_card_number || 'N/A'}</div>
+                <div><strong>Email:</strong> ${record.email || 'N/A'}</div>
+                <div><strong>Phone:</strong> ${record.phone || 'N/A'}</div>
+                <div style="grid-column: 1 / -1;"><strong>Address:</strong> ${record.address || 'N/A'}</div>
+                <div><strong>Attempts:</strong> ${record.attempt_count}</div>
+                <div><strong>Priority:</strong> ${record.priority}</div>
+                <div><strong>Verified At:</strong> ${record.verified_at ? new Date(record.verified_at).toLocaleString() : 'N/A'}</div>
+                <div><strong>Created:</strong> ${new Date(record.created_at).toLocaleString()}</div>
+                <div style="grid-column: 1 / -1;"><strong>Verification Result:</strong><br>${record.verification_result || 'N/A'}</div>
+                <div style="grid-column: 1 / -1;"><strong>Notes:</strong><br>${record.notes || 'N/A'}</div>
+            </div>
+        `;
+        
+        document.getElementById('record-details').innerHTML = detailsHtml;
+        openModal('record-modal');
+        
+    } catch (error) {
+        console.error('Error viewing record:', error);
+        showNotification('Failed to load record details', 'error');
+    }
+}
+
+async function editRecord(recordId) {
+    try {
+        const response = await fetch(`/api/records/${recordId}`);
+        
+        if (!response.ok) {
+            throw new Error('Failed to load record');
+        }
+        
+        const record = await response.json();
+        
+        // Populate form
+        document.getElementById('edit-record-id').value = record.record_id;
+        document.getElementById('edit-customer-id').value = record.customer_id || '';
+        document.getElementById('edit-customer-name').value = record.customer_name || '';
+        document.getElementById('edit-ssn').value = record.ssn || '';
+        document.getElementById('edit-credit-card').value = record.credit_card_number || '';
+        document.getElementById('edit-email').value = record.email || '';
+        document.getElementById('edit-phone').value = record.phone || '';
+        document.getElementById('edit-address').value = record.address || '';
+        document.getElementById('edit-notes').value = record.notes || '';
+        document.getElementById('edit-priority').value = record.priority || 0;
+        
+        openModal('edit-record-modal');
+        
+    } catch (error) {
+        console.error('Error loading record for edit:', error);
+        showNotification('Failed to load record', 'error');
+    }
+}
+
+async function saveRecord(event) {
+    event.preventDefault();
+    
+    const recordId = document.getElementById('edit-record-id').value;
+    const formData = new URLSearchParams();
+    
+    // Get form values
+    const customerId = document.getElementById('edit-customer-id').value;
+    const customerName = document.getElementById('edit-customer-name').value;
+    const ssn = document.getElementById('edit-ssn').value;
+    const creditCard = document.getElementById('edit-credit-card').value;
+    const email = document.getElementById('edit-email').value;
+    const phone = document.getElementById('edit-phone').value;
+    const address = document.getElementById('edit-address').value;
+    const notes = document.getElementById('edit-notes').value;
+    const priority = document.getElementById('edit-priority').value;
+    
+    // Only add non-empty values
+    if (customerId) formData.append('customer_id', customerId);
+    if (customerName) formData.append('customer_name', customerName);
+    if (ssn) formData.append('ssn', ssn);
+    if (creditCard) formData.append('credit_card_number', creditCard);
+    if (email) formData.append('email', email);
+    if (phone) formData.append('phone', phone);
+    if (address) formData.append('address', address);
+    if (notes) formData.append('notes', notes);
+    if (priority) formData.append('priority', priority);
+    
+    try {
+        const response = await fetch(`/api/records/${recordId}?${formData.toString()}`, {
+            method: 'PUT'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update record');
+        }
+        
+        const result = await response.json();
+        showNotification(result.message || 'Record updated successfully', 'success');
+        closeModal('edit-record-modal');
+        loadRecords(); // Reload the list
+        
+    } catch (error) {
+        console.error('Error saving record:', error);
+        showNotification(error.message || 'Failed to save record', 'error');
+    }
+}
+
+async function deleteRecord(recordId, customerName) {
+    if (!confirm(`Are you sure you want to delete the record for ${customerName}? This action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/records/${recordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to delete record');
+        }
+        
+        const result = await response.json();
+        showNotification(result.message || 'Record deleted successfully', 'success');
+        loadRecords(); // Reload the list
+        
+    } catch (error) {
+        console.error('Error deleting record:', error);
+        showNotification(error.message || 'Failed to delete record', 'error');
+    }
+}
+
+function exportRecordsCSV() {
+    const statusFilter = document.getElementById('status-filter').value;
+    let url = '/api/records/csv/export';
+    if (statusFilter) {
+        url += `?status_filter=${statusFilter}`;
+    }
+    window.location.href = url;
+}
+
+async function startBatchProcessing() {
+    if (!confirm('Start batch processing of unchecked records?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/records/batch/start', {
+            method: 'POST'
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to start batch processing');
+        }
+        
+        const result = await response.json();
+        showNotification(result.message || 'Batch processing started', 'success');
+        
+    } catch (error) {
+        console.error('Error starting batch:', error);
+        showNotification('Failed to start batch processing', 'error');
+    }
+}
+
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.add('active');
+        modal.style.display = 'flex';
+    }
+}
+
+function closeModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Create a better notification that auto-dismisses
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 1rem 1.5rem;
+        background-color: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+        color: white;
+        border-radius: 0.5rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 10000;
+        animation: slideIn 0.3s ease-out;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-dismiss after 2 seconds
+    setTimeout(() => {
+        notification.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 300);
+    }, 2000);
+}
+
+// Close modal when clicking outside
+window.addEventListener('click', function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.classList.remove('active');
+        event.target.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}

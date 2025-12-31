@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Account Verifier{% endblock %}
+{% block page_name %}dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Monitor your account verification system</p>
+        </div>
+        <div id="system-mode-badge" class="badge" style="font-size: 16px; padding: 10px 20px;">
+            <span class="spinner" style="width: 20px; height: 20px;"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value" id="total-verifications">0</div>
+        <div class="stat-label">Total Verifications</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="verified-count">0</div>
+        <div class="stat-label">Verified</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="pending-count">0</div>
+        <div class="stat-label">Pending</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="success-rate">0%</div>
+        <div class="stat-label">Success Rate</div>
+    </div>
+</div>
+
+<!-- Twilio Usage Cards -->
+<div class="card">
+    <div class="card-header">💰 Twilio Account Usage (Live)</div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="twilio-balance">Loading...</div>
+            <div class="stat-label">Account Balance</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="twilio-minutes">0</div>
+            <div class="stat-label">Minutes Used (This Month)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="twilio-calls">0</div>
+            <div class="stat-label">Total Calls (This Month)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="twilio-status">...</div>
+            <div class="stat-label">Account Status</div>
+        </div>
+    </div>
+    <div style="margin-top: 1rem; text-align: center; color: #666;">
+        <small>Last updated: <span id="usage-last-update">Never</span></small>
+        <button class="btn btn-secondary" onclick="refreshUsageData()" style="margin-left: 1rem;">🔄 Refresh</button>
+    </div>
+</div>
+
+<!-- Batch Monitor (Live Processing) -->
+<div id="batch-monitor" class="card" style="display: none;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📊 Live Batch Processing</span>
+        <span id="batch-status" class="badge badge-success">RUNNING</span>
+    </div>
+    
+    <!-- Progress Bar -->
+    <div style="margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+            <strong>Progress</strong>
+            <span id="batch-progress-text">0 / 0 (0%)</span>
+        </div>
+        <div style="background: #e0e0e0; border-radius: 10px; height: 20px; overflow: hidden;">
+            <div id="batch-progress-bar" style="background: linear-gradient(90deg, #4CAF50, #45a049); height: 100%; width: 0%; transition: width 0.3s;"></div>
+        </div>
+    </div>
+    
+    <!-- Stats Grid -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+        <div class="stat-card" style="background: #e8f5e9;">
+            <div class="stat-value" id="batch-successful" style="color: #4CAF50;">0</div>
+            <div class="stat-label">Successful</div>
+        </div>
+        <div class="stat-card" style="background: #ffebee;">
+            <div class="stat-value" id="batch-failed" style="color: #f44336;">0</div>
+            <div class="stat-label">Failed</div>
+        </div>
+    </div>
+    
+    <!-- Current Call Info -->
+    <div id="current-call-info" style="display: none; background: #f5f5f5; padding: 1rem; border-radius: 5px; margin-bottom: 1rem;">
+        <div style="margin-bottom: 0.5rem;"><strong>📞 Current Call</strong></div>
+        <div><strong>Customer:</strong> <span id="current-customer">-</span></div>
+        <div><strong>Company:</strong> <span id="current-company">-</span></div>
+    </div>
+    
+    <!-- Live Transcript -->
+    <div id="live-transcript-section" style="display: none; margin-bottom: 1rem;">
+        <div style="margin-bottom: 0.5rem;"><strong>🎙️ Live Transcription</strong></div>
+        <div id="live-transcript-content" style="background: #f9f9f9; border: 1px solid #ddd; padding: 1rem; border-radius: 5px; max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.9em; white-space: pre-wrap;"></div>
+    </div>
+    
+    <!-- Logs -->
+    <div style="margin-bottom: 1rem;">
+        <div style="margin-bottom: 0.5rem;"><strong>📋 Activity Log</strong></div>
+        <div id="batch-logs" style="background: #f9f9f9; border: 1px solid #ddd; padding: 0.5rem; border-radius: 5px; max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85em;"></div>
+    </div>
+    
+    <!-- Control Buttons -->
+    <div class="btn-group">
+        <button id="batch-pause-btn" class="btn btn-warning" style="display: none;">
+            ⏸️ Pause
+        </button>
+        <button id="batch-resume-btn" class="btn btn-success" style="display: none;">
+            ▶️ Resume
+        </button>
+        <button id="batch-stop-btn" class="btn btn-danger" style="display: none;">
+            ⏹️ Stop
+        </button>
+    </div>
+</div>
+
+<!-- Scheduler Status -->
+<div class="card">
+    <div class="card-header">Automatic Scheduler</div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div>
+            <strong>Status:</strong> <span id="scheduler-status">Loading...</span>
+        </div>
+        <div>
+            <strong>Next Run:</strong> <span id="next-run">Loading...</span>
+        </div>
+    </div>
+    <div style="margin-top: 1rem;">
+        <button class="btn btn-primary" onclick="triggerScheduler()">
+            🚀 Trigger Batch Now
+        </button>
+        <button class="btn btn-secondary" onclick="location.reload()">
+            🔄 Refresh Status
+        </button>
+    </div>
+</div>
+
+<!-- Recent Verifications -->
+<div class="card">
+    <div class="card-header">Recent Verifications</div>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Customer</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="recent-verifications-tbody">
+                <tr>
+                    <td colspan="5" style="text-align: center;">
+                        <div class="spinner"></div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div style="margin-top: 1rem;">
+        <a href="/verifications" class="btn btn-primary">View All Verifications</a>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">Quick Actions</div>
+    <div class="btn-group">
+        <a href="/add-verification" class="btn btn-primary">➕ Add New Verification</a>
+        <a href="/csv" class="btn btn-success">📁 Import from CSV</a>
+        <button class="btn btn-secondary" onclick="downloadCSV()">📥 Export Results</button>
+    </div>
+</div>
+
+<!-- Modal for Verification Details -->
+<div id="verification-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">Verification Details</div>
+        <div id="verification-details"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<style>
+.log-entry {
+    padding: 0.25rem 0.5rem;
+    border-left: 3px solid #ddd;
+    margin-bottom: 0.25rem;
+}
+.log-entry .log-time {
+    color: #666;
+    margin-right: 0.5rem;
+}
+.log-entry .log-level {
+    font-weight: bold;
+    margin-right: 0.5rem;
+}
+.log-info { border-left-color: #2196F3; }
+.log-info .log-level { color: #2196F3; }
+.log-success { border-left-color: #4CAF50; }
+.log-success .log-level { color: #4CAF50; }
+.log-warning { border-left-color: #FF9800; }
+.log-warning .log-level { color: #FF9800; }
+.log-error { border-left-color: #f44336; }
+.log-error .log-level { color: #f44336; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/batch_monitor.js"></script>
+{% endblock %}

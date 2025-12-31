@@ -1,0 +1,85 @@
+services:
+  # Web Service - FastAPI Application
+  - type: web
+    name: account-verifier
+    env: python
+    region: oregon  # Change to your preferred region (oregon, frankfurt, singapore, etc.)
+    plan: free  # Free tier
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      # App Configuration
+      - key: APP_HOST
+        value: 0.0.0.0
+      - key: APP_PORT
+        value: 8001
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true  # Auto-generates secure secret key
+      
+      # Database (will be linked to PostgreSQL database below)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: account-verifier-db
+          property: connectionString
+      
+      # Twilio Configuration (you'll need to add these in Render dashboard)
+      - key: TWILIO_ACCOUNT_SID
+        sync: false  # Set manually in Render dashboard
+      - key: TWILIO_AUTH_TOKEN
+        sync: false  # Set manually in Render dashboard
+      - key: TWILIO_PHONE_NUMBER
+        sync: false  # Set manually in Render dashboard
+      - key: TWILIO_WEBHOOK_BASE_URL
+        sync: false  # Will be your Render URL: https://account-verifier.onrender.com
+      
+      # OpenAI Configuration (set manually in Render dashboard)
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4-turbo-preview
+      
+      # Testing Mode (start with true, then switch to false when ready)
+      - key: TEST_MODE
+        value: true
+      
+      # Call Settings
+      - key: MAX_CONCURRENT_CALLS
+        value: 1
+      - key: MAX_RETRY_ATTEMPTS
+        value: 2
+      - key: RETRY_BACKOFF_MINUTES
+        value: 15,120
+      - key: CALL_TIMEOUT_SECONDS
+        value: 300
+      
+      # Auto-Calling Settings (disable initially to save resources)
+      - key: ENABLE_AUTO_CALLING
+        value: false  # Set to true when ready to use scheduler
+      - key: CALL_LOOP_INTERVAL_MINUTES
+        value: 5
+      - key: BATCH_SIZE_PER_LOOP
+        value: 10
+      
+      # Compliance Settings
+      - key: ENABLE_CALL_RECORDING
+        value: false
+      - key: REQUIRE_RECORDING_CONSENT
+        value: false
+      - key: ENABLE_TRANSCRIPTION
+        value: false
+      
+      # Notifications (optional)
+      - key: ADMIN_EMAIL
+        value: ""
+      - key: ADMIN_PHONE
+        value: ""
+
+databases:
+  # PostgreSQL Database
+  - name: account-verifier-db
+    databaseName: account_verifier
+    plan: free  # Free tier - 90 days free, then $7/month
+    region: oregon  # Should match web service region
+    postgresMajorVersion: 15

@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}CSV Import - Account Verifier{% endblock %}
+{% block page_name %}csv{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>CSV Import/Export</h1>
+    <p>Bulk manage your verifications</p>
+</div>
+
+<div class="card">
+    <div class="card-header">Import Verifications from CSV</div>
+    
+    <div class="file-upload" onclick="document.getElementById('csv-file').click()">
+        <input type="file" id="csv-file" accept=".csv" onchange="handleCSVUpload(event)">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">📁</div>
+        <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">Click to upload CSV file</div>
+        <div style="color: var(--gray-600);">or drag and drop</div>
+    </div>
+    
+    <div style="margin-top: 1.5rem;">
+        <a href="/api/csv/template" class="btn btn-secondary" download>
+            📥 Download CSV Template
+        </a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Export Verifications to CSV</div>
+    <p style="margin-bottom: 1rem;">Download all your verification data as a CSV file for backup or analysis.</p>
+    <button class="btn btn-success" onclick="downloadCSV()">
+        📤 Export All Verifications
+    </button>
+</div>
+
+<div class="card">
+    <div class="card-header">CSV Format Guide</div>
+    
+    <h4 style="margin-top: 1rem;">Required Columns:</h4>
+    <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+        <li><strong>verification_id</strong> - Unique identifier</li>
+        <li><strong>customer_name</strong> - Customer's full name</li>
+        <li><strong>customer_phone</strong> - Phone in E.164 format (+1XXXXXXXXXX)</li>
+        <li><strong>company_name</strong> - Company to call</li>
+        <li><strong>company_phone</strong> - Company phone in E.164 format</li>
+    </ul>
+
+    <h4 style="margin-top: 1rem;">Optional Columns:</h4>
+    <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+        <li><strong>customer_email</strong> - Customer's email</li>
+        <li><strong>customer_address</strong> - Customer's address</li>
+        <li><strong>account_number</strong> - Account number if known</li>
+        <li><strong>customer_date_of_birth</strong> - DOB for verification</li>
+        <li><strong>customer_ssn_last4</strong> - Last 4 digits of SSN (4 digits, e.g., 6789)</li>
+        <li><strong>verification_instruction</strong> - Special instructions</li>
+        <li><strong>priority</strong> - Priority (0=low, 1=normal, 2=high)</li>
+    </ul>
+
+    <h4 style="margin-top: 1rem;">Example:</h4>
+    <div style="background: var(--gray-50); padding: 1rem; border-radius: 0.375rem; overflow-x: auto; font-family: monospace; font-size: 0.875rem;">
+verification_id,customer_name,customer_phone,company_name,company_phone,customer_email<br>
+ver_001,John Doe,+12125551234,Electric Co,+18005551234,john@email.com<br>
+ver_002,Jane Smith,+13105559876,Water Dept,+18005559876,jane@email.com
+    </div>
+</div>
+{% endblock %}
