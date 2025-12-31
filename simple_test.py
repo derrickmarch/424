@@ -27,11 +27,11 @@ except Exception as e:
 
 # Test account to verify
 TEST_CUSTOMER = {
-    "name": "John Doe",
+    "name": "Black Genesis",
     "account_number": "123456789",
     "phone": "+19092028031",  # Your verified test number
     "company": "Citibank",
-    "company_phone": "+18002484226"  # Citibank customer service
+    "company_phone": "+19092028031"  # Citibank customer service
 }
 
 # ============================================================================
@@ -117,9 +117,18 @@ def test_account_verification():
         
         print(f"   ✅ Call initiated successfully!")
         print(f"   📞 Call SID: {call.sid}")
-        print(f"   📱 To: {call.to}")
-        print(f"   📱 From: {call.from_}")
-        print(f"   📊 Status: {call.status}")
+        # Fetch once to ensure fields like from_/to are populated
+        try:
+            created = client.calls(call.sid).fetch()
+            to_display = getattr(created, "to_formatted", None) or getattr(created, "to", None)
+            from_display = getattr(created, "from_formatted", None) or getattr(created, "from_", None)
+            status_display = getattr(created, "status", "unknown")
+
+            print(f"   📱 To: {to_display}")
+            print(f"   📱 From: {from_display}")
+            print(f"   📊 Status: {status_display}")
+        except Exception as e:
+            print(f"   ⚠️  Could not fetch call details yet: {e}")
         
         print(f"\n🔔 YOUR PHONE SHOULD BE RINGING NOW!")
         print(f"   Answer it to hear the test message...")
