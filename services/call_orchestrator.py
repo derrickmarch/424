@@ -15,6 +15,12 @@ import asyncio
 
 logger = logging.getLogger(__name__)
 
+# Import call monitor for real-time tracking
+def get_call_monitor():
+    """Lazy import to avoid circular dependency."""
+    from api.call_monitor import call_monitor
+    return call_monitor
+
 
 class CallOrchestrator:
     """Orchestrates the end-to-end calling process for account verifications."""
@@ -103,13 +109,29 @@ class CallOrchestrator:
         status_callback_url = f"{webhook_base_url}/api/twilio/status-callback"
         
         try:
+            # Start call monitoring
+            monitor = get_call_monitor()
+            
             # Initiate the call via Twilio
+            logger.info(f"🔄 Initiating call for verification {verification_id}")
+            monitor.add_event(verification_id, "preparation", "Preparing to make call", {
+                "to_number": verification.company_phone,
+                "company": verification.company_name
+            })
+            
             call_sid = self.twilio_service.make_outbound_call(
                 to_number=verification.company_phone,
                 verification_id=verification_id,
                 webhook_url=voice_webhook_url,
                 status_callback_url=status_callback_url
             )
+            
+            # Register call with monitor
+            monitor.start_call(call_sid, verification_id, verification.company_phone)
+            monitor.add_event(call_sid, "call_initiated", f"Call initiated to {verification.company_phone}", {
+                "call_sid": call_sid,
+                "verification_id": verification_id
+            })
             
             # Update verification status
             self.verification_service.mark_as_calling(verification_id, call_sid)
@@ -128,7 +150,8 @@ class CallOrchestrator:
             self.db.add(call_log)
             self.db.commit()
             
-            logger.info(f"Initiated call {call_sid} for verification {verification_id}")
+            monitor.add_event(call_sid, "database_updated", "Call log created in database")
+            logger.info(f"✅ Initiated call {call_sid} for verification {verification_id}")
             return call_sid
             
         except Exception as e:
@@ -164,6 +187,10 @@ class CallOrchestrator:
             return
         
         try:
+            # Get monitor
+            monitor = get_call_monitor()
+            monitor.add_event(call_sid, "processing_started", "Processing call results")
+            
             # Create call context
             call_context = CallContext(
                 verification_id=verification.verification_id,
@@ -177,11 +204,19 @@ class CallOrchestrator:
                 attempt_number=verification.attempt_count
             )
             
+            monitor.add_event(call_sid, "ai_processing", "AI analyzing conversation")
+            
             # Process the conversation with AI
             result, summary = ai_agent_service.process_conversation(
                 call_context,
                 conversation_transcript
             )
+            
+            monitor.add_event(call_sid, "ai_result", f"AI decision: {result.call_outcome}", {
+                "outcome": result.call_outcome.value,
+                "account_exists": result.account_exists,
+                "summary": summary
+            })
             
             # Determine if we should store transcript
             transcript_to_store = None
