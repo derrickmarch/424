@@ -44,6 +44,14 @@ services:
       - key: TEST_MODE
         value: true
       
+      # Test Mode Configuration (for Twilio trial accounts)
+      - key: TEST_PHONE_NUMBER
+        sync: false  # Set to your verified Twilio test number (e.g., +19092028031)
+      
+      # Render Platform Detection
+      - key: RENDER
+        value: true
+      
       # Call Settings
       - key: MAX_CONCURRENT_CALLS
         value: 1

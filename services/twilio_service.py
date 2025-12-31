@@ -35,8 +35,9 @@ class TwilioService:
             auth_token = settings.twilio_auth_token
             phone_number = settings.twilio_phone_number
         
-        # Use mock service in test mode
-        if settings.test_mode:
+        # Use mock service in test mode (check runtime override)
+        test_mode = settings.get_test_mode()
+        if test_mode:
             from services.mock_service import MockTwilioService
             self._service = MockTwilioService()
             self.from_number = phone_number
@@ -49,7 +50,8 @@ class TwilioService:
     
     def refresh_credentials(self, db: Session):
         """Refresh credentials from database (allows hot-reload of API keys)."""
-        if settings.test_mode:
+        test_mode = settings.get_test_mode()
+        if test_mode:
             return  # No need to refresh in test mode
         
         from services.settings_service import get_runtime_settings

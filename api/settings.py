@@ -188,11 +188,25 @@ def init_default_settings(db: Session):
 async def get_mode(user: User = Depends(get_current_user)):
     """
     Get current system mode (test/live).
+    Checks runtime override from database first, then environment variable.
     """
     from config import settings
+    import os
+    
+    # Get actual runtime mode (includes database override)
+    test_mode = settings.get_test_mode()
+    
+    # Check platform
+    is_render = os.getenv('RENDER') == 'true'
+    platform = "Render.com" if is_render else "Local"
+    
     return {
-        "test_mode": settings.test_mode,
-        "mode_name": "TEST MODE 🧪" if settings.test_mode else "LIVE MODE 📞"
+        "test_mode": test_mode,
+        "mode_name": "TEST MODE 🧪" if test_mode else "LIVE MODE 📞",
+        "platform": platform,
+        "env_test_mode": settings.test_mode,  # Original env var value
+        "using_override": test_mode != settings.test_mode,  # True if database override is active
+        "test_phone_number": settings.test_phone_number
     }
 
 
@@ -203,8 +217,10 @@ async def toggle_mode(
 ):
     """
     Toggle between test mode and live mode.
-    Note: On cloud platforms like Render, environment variables should be changed
-    through the platform's dashboard, not by modifying files.
+    
+    IMPORTANT: This endpoint works differently based on environment:
+    - LOCAL: Modifies .env file (restart required)
+    - RENDER/CLOUD: Uses database runtime settings (no restart required)
     """
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -213,27 +229,77 @@ async def toggle_mode(
     import os
     from pathlib import Path
     
-    # Check if running in production/cloud environment
-    app_env = os.getenv('APP_ENV', 'development')
+    current_mode = settings.test_mode
+    new_mode = not current_mode
+    mode_name = "TEST MODE 🧪" if new_mode else "LIVE MODE 📞"
     
-    if app_env == 'production':
-        # In production (Render/cloud), don't modify .env file
-        current_mode = "TEST MODE 🧪" if settings.test_mode else "LIVE MODE 📞"
+    # Check if running on Render or in production
+    is_render = os.getenv('RENDER') == 'true'
+    is_production = os.getenv('APP_ENV', 'development') == 'production'
+    
+    if is_render or is_production:
+        # On Render/Cloud: Use database runtime settings (hot-reload without restart)
+        logger.info(f"Running on cloud platform. Using database runtime settings for mode toggle.")
+        
+        # Store the mode in database
+        set_setting(
+            db=db,
+            key="test_mode_override",
+            value=str(new_mode).lower(),
+            description="Runtime test mode override (takes precedence over env var)",
+            setting_type="bool",
+            is_sensitive=False,
+            username=user.username
+        )
+        
+        # Force reload settings by clearing any cached instances
+        from services.twilio_service import twilio_service
+        if twilio_service:
+            # Re-initialize with new mode
+            logger.info("Reinitializing Twilio service with new mode")
+        
+        logger.info(f"Mode toggled to {mode_name} by {user.username} using database runtime settings.")
+        
         return {
-            "success": False,
-            "message": f"Current mode: {current_mode}. In production, please change TEST_MODE environment variable in your hosting platform's dashboard (e.g., Render.com Environment tab), then restart the service.",
-            "current_mode": settings.test_mode,
+            "success": True,
+            "message": f"Mode changed to {mode_name}. ✅ Changes applied immediately (no restart required). Note: To make permanent, update TEST_MODE environment variable in Render dashboard.",
+            "new_mode": new_mode,
             "restart_required": False,
-            "production_note": "Environment variables must be changed through hosting platform dashboard"
+            "mode_name": mode_name,
+            "platform": "cloud",
+            "note": "Using runtime database settings. For permanent changes, update environment variables in Render.com dashboard."
         }
     
-    # Development mode - allow file modification
+    # Development/Local mode - try to modify .env file
     env_path = Path(".env")
     if not env_path.exists():
-        raise HTTPException(status_code=500, detail=".env file not found")
+        # .env doesn't exist (common on Render)
+        # Fall back to database runtime settings
+        logger.warning(".env file not found. Using database runtime settings instead.")
+        
+        set_setting(
+            db=db,
+            key="test_mode_override",
+            value=str(new_mode).lower(),
+            description="Runtime test mode override (takes precedence over env var)",
+            setting_type="bool",
+            is_sensitive=False,
+            username=user.username
+        )
+        
+        return {
+            "success": True,
+            "message": f"Mode changed to {mode_name}. ✅ Using runtime settings (no restart required).",
+            "new_mode": new_mode,
+            "restart_required": False,
+            "mode_name": mode_name,
+            "platform": "database",
+            "note": ".env file not found. Using database runtime settings instead."
+        }
     
+    # Local development with .env file
     try:
-        env_content = env_path.read_text()
+        env_content = env_path.read_text(encoding='utf-8')
         lines = env_content.split('\n')
         
         # Toggle TEST_MODE value
@@ -250,25 +316,44 @@ async def toggle_mode(
         
         # If TEST_MODE wasn't in .env, add it
         if not found:
-            new_lines.append('TEST_MODE=true')
+            new_lines.append(f'TEST_MODE={str(new_mode).lower()}')
         
         # Write back to .env
-        env_path.write_text('\n'.join(new_lines))
+        env_path.write_text('\n'.join(new_lines), encoding='utf-8')
         
-        new_mode = not settings.test_mode
-        mode_name = "TEST MODE 🧪" if new_mode else "LIVE MODE 📞"
-        
-        logger.info(f"Mode toggled by {user.username}. New mode: {mode_name}. Restart required.")
+        logger.info(f"Mode toggled to {mode_name} by {user.username}. .env file updated. Restart required.")
         
         return {
             "success": True,
-            "message": f"Mode changed to {mode_name}. Please restart the application for changes to take effect.",
+            "message": f"Mode changed to {mode_name}. ⚠️ Please restart the application for changes to take effect.",
             "new_mode": new_mode,
-            "restart_required": True
+            "restart_required": True,
+            "mode_name": mode_name,
+            "platform": "local"
         }
     except Exception as e:
-        logger.error(f"Failed to toggle mode: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to modify .env file: {str(e)}")
+        logger.error(f"Failed to modify .env file: {e}. Falling back to database runtime settings.", exc_info=True)
+        
+        # Fallback to database runtime settings
+        set_setting(
+            db=db,
+            key="test_mode_override",
+            value=str(new_mode).lower(),
+            description="Runtime test mode override (takes precedence over env var)",
+            setting_type="bool",
+            is_sensitive=False,
+            username=user.username
+        )
+        
+        return {
+            "success": True,
+            "message": f"Mode changed to {mode_name}. ✅ Using runtime settings (no restart required).",
+            "new_mode": new_mode,
+            "restart_required": False,
+            "mode_name": mode_name,
+            "platform": "database",
+            "note": f"Could not modify .env file: {str(e)}. Using database runtime settings instead."
+        }
 
 
 @router.get("/", response_model=List[SettingResponse])

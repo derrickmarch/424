@@ -59,3 +59,14 @@ tmp_rovodev_*
 
 # Render
 .render/
+
+# Temporary/junk files (ignore files without extensions at root)
+25.3
+Build
+Deploying
+Docs
+No
+Running
+Setting
+Uploaded
+Uploading
