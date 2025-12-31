@@ -6,7 +6,7 @@ services:
     region: oregon  # Change to your preferred region (oregon, frankfurt, singapore, etc.)
     plan: free  # Free tier
     buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       # App Configuration
       - key: APP_HOST
