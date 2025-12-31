@@ -138,6 +138,85 @@ async def start_batch(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
+@router.put("/{verification_id}", response_model=AccountVerificationResponse)
+def update_verification(
+    verification_id: str,
+    verification_data: AccountVerificationCreate,
+    db: Session = Depends(get_db)
+):
+    """Update an existing verification."""
+    try:
+        from models import AccountVerification
+        
+        verification = db.query(AccountVerification).filter(
+            AccountVerification.verification_id == verification_id
+        ).first()
+        
+        if not verification:
+            raise HTTPException(status_code=404, detail="Verification not found")
+        
+        # Update fields
+        verification.customer_name = verification_data.customer_name
+        verification.account_number = verification_data.account_number
+        verification.phone_number = verification_data.phone_number
+        verification.company_name = verification_data.company_name
+        
+        if verification_data.company_phone:
+            verification.company_phone = verification_data.company_phone
+        if verification_data.address:
+            verification.address = verification_data.address
+        if verification_data.priority is not None:
+            verification.priority = verification_data.priority
+        
+        db.commit()
+        db.refresh(verification)
+        
+        logger.info(f"Verification {verification_id} updated successfully")
+        return verification
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating verification: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.delete("/{verification_id}")
+def delete_verification(
+    verification_id: str,
+    db: Session = Depends(get_db)
+):
+    """Delete a verification and its associated data."""
+    try:
+        from models import AccountVerification, CallLog
+        
+        verification = db.query(AccountVerification).filter(
+            AccountVerification.verification_id == verification_id
+        ).first()
+        
+        if not verification:
+            raise HTTPException(status_code=404, detail="Verification not found")
+        
+        # Delete associated call logs first
+        db.query(CallLog).filter(
+            CallLog.verification_id == verification.id
+        ).delete()
+        
+        # Delete the verification
+        db.delete(verification)
+        db.commit()
+        
+        logger.info(f"Verification {verification_id} deleted successfully")
+        return {"message": f"Verification {verification_id} deleted successfully"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting verification: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
 @router.post("/{verification_id}/retry")
 def retry_verification(
     verification_id: str,
