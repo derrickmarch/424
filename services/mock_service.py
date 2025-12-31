@@ -263,7 +263,7 @@ class MockOpenAIService:
             {
                 'call_outcome': CallOutcome.NEEDS_HUMAN,
                 'verification_status': 'needs_human',
-                'account_exists': None,
+                'account_exists': False,  # Default to False when uncertain
                 'account_details': None,
                 'notes': '🧪 MOCK: Needs human review (simulated)',
                 'summary': 'Mock AI determined human review needed for testing.',
