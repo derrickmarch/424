@@ -212,7 +212,7 @@ class CallOrchestrator:
             logger.info(f"Completed call {call_sid} for verification {verification.verification_id}: {result.call_outcome}")
             
         except Exception as e:
-            logger.error(f"Error handling completed call {call_sid}: {e}")
+            logger.error(f"Error handling completed call {call_sid}: {e}", exc_info=True)
             self.verification_service.mark_as_failed(verification.verification_id, str(e))
     
     async def process_batch(self, max_verifications: Optional[int] = None):

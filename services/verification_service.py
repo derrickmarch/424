@@ -130,8 +130,8 @@ class VerificationService:
         else:
             verification.status = VerificationStatus.FAILED
         
-        # Store results
-        verification.result_json = result.model_dump()
+        # Store results (mode='json' converts enums to strings)
+        verification.result_json = result.model_dump(mode='json')
         verification.call_summary = call_summary
         verification.call_outcome = result.call_outcome
         verification.follow_up_needed = result.follow_up_needed

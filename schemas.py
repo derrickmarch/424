@@ -61,7 +61,7 @@ class AccountVerificationResponse(BaseModel):
 class CallResultSchema(BaseModel):
     """Schema for structured call outcome."""
     account_exists: bool
-    account_details: Optional[Dict[str, str]] = None
+    account_details: Optional[Dict[str, Any]] = None
     verification_status: str
     additional_info: Optional[str] = None
     agent_notes: str = ""
