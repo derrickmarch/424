@@ -2,7 +2,8 @@
 SQLAlchemy models for the Account Verifier system.
 """
 from datetime import datetime
-from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, JSON, Enum as SQLEnum
+from sqlalchemy import Column, String, Integer, DateTime, Text, Boolean, JSON, Enum as SQLEnum, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 import enum
 
@@ -221,6 +222,26 @@ class User(Base):
     is_admin = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
+    
+    # Relationships
+    audit_logs = relationship("AuditLog", back_populates="user")
+
+
+class AuditLog(Base):
+    """Audit log for tracking all system actions."""
+    __tablename__ = "audit_logs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    action = Column(String(50), nullable=False)  # create, update, delete, view, etc.
+    resource_type = Column(String(50), nullable=False)  # verification, user, setting, etc.
+    resource_id = Column(String(100), nullable=True)
+    details = Column(JSON, nullable=True)  # Additional details as JSON
+    ip_address = Column(String(45), nullable=True)  # IPv4 or IPv6
+    timestamp = Column(DateTime, default=datetime.utcnow, index=True)
+    
+    # Relationship
+    user = relationship("User", back_populates="audit_logs")
 
 
 class SystemSettings(Base):
