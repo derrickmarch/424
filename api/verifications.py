@@ -228,7 +228,7 @@ def delete_verification(
         
         # Delete associated call logs first
         db.query(CallLog).filter(
-            CallLog.verification_id == verification.id
+            CallLog.verification_id == verification.verification_id
         ).delete()
         
         # Delete the verification

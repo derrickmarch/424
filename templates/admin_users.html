@@ -120,7 +120,11 @@ async function fetchUsers() {
   if (currentQuery) params.set('q', currentQuery);
   const res = await fetch('/api/users/?' + params.toString());
   if (!res.ok) {
-    alert('Failed to load users');
+    if (res.status === 401) { window.location.href = '/login'; return; }
+    if (res.status === 403) { alert('Admin access required.'); return; }
+    let msg = 'Failed to load users';
+    try { const err = await res.json(); if (err && err.detail) msg = err.detail; } catch(_){}
+    alert(msg);
     return;
   }
   const data = await res.json();

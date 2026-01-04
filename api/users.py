@@ -3,7 +3,9 @@ User management API endpoints (admin-only).
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import func, or_
 from pydantic import BaseModel, EmailStr
+from datetime import datetime
 from typing import Optional, List
 from database import get_db
 from models import User, AuditLog
@@ -39,8 +41,8 @@ class UserOut(BaseModel):
     full_name: Optional[str]
     is_admin: bool
     is_active: bool
-    created_at: str
-    last_login_at: Optional[str]
+    created_at: Optional[datetime]
+    last_login_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -73,8 +75,14 @@ async def list_users(
         page_size = 20
     query = db.query(User)
     if q:
-        like = f"%{q}%"
-        query = query.filter((User.username.ilike(like)) | (User.email.ilike(like)) | (User.full_name.ilike(like)))
+        like = f"%{q.lower()}%"
+        query = query.filter(
+            or_(
+                func.lower(User.username).like(like),
+                func.lower(User.email).like(like),
+                func.lower(User.full_name).like(like)
+            )
+        )
     total = query.count()
     items = query.order_by(User.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
     return PaginatedUsers(items=items, total=total, page=page, page_size=page_size)

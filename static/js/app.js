@@ -37,8 +37,17 @@ async function apiCall(endpoint, options = {}) {
         });
         
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'API request failed');
+            // Redirect to login on unauthorized
+            if (response.status === 401) {
+                window.location.href = '/login';
+                return Promise.reject(new Error('Not authenticated'));
+            }
+            let errorMsg = 'API request failed';
+            try {
+                const error = await response.json();
+                errorMsg = error.detail || errorMsg;
+            } catch (_) { /* ignore parse errors */ }
+            throw new Error(errorMsg);
         }
         
         return await response.json();
