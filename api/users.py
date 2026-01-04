@@ -71,8 +71,7 @@ async def list_users(
     ensure_admin(current_user)
     if page < 1:
         page = 1
-    if page_size < 1:
-        page_size = 20
+    # page_size=0 means 'all'
     query = db.query(User)
     if q:
         like = f"%{q.lower()}%"
@@ -84,6 +83,12 @@ async def list_users(
             )
         )
     total = query.count()
+    if page_size == 0:
+        # Return all items
+        items = query.order_by(User.id.asc()).all()
+        return PaginatedUsers(items=items, total=total, page=1, page_size=total)
+    if page_size < 1:
+        page_size = 20
     items = query.order_by(User.id.asc()).offset((page - 1) * page_size).limit(page_size).all()
     return PaginatedUsers(items=items, total=total, page=page, page_size=page_size)
 
