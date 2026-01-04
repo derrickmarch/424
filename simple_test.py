@@ -7,6 +7,23 @@ import os
 from twilio.rest import Client
 from openai import OpenAI
 import time
+import sys
+
+
+def safe_input(prompt: str, default: str = "") -> str:
+    """
+    Read input safely in both interactive and non-interactive environments.
+    - If stdin is not a TTY or raises EOFError, return the provided default.
+    """
+    try:
+        if not sys.stdin or not sys.stdin.isatty():
+            # Non-interactive environment (e.g., CI)
+            print(f"[non-interactive] {prompt} -> default='{default}'")
+            return default
+        return input(prompt)
+    except EOFError:
+        print(f"[EOF] {prompt} -> default='{default}'")
+        return default
 
 # ============================================================================
 # CONFIGURATION - Fill in your credentials here

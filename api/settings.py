@@ -10,6 +10,8 @@ from api.auth import get_current_user
 from typing import Optional, List
 import json
 import logging
+import re
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,22 @@ def init_default_settings(db: Session):
     from config import settings as app_settings
     
     defaults = [
+        # Telephony Provider
+        {
+            "key": "telephony_provider",
+            "value": (app_settings.telephony_provider or "twilio"),
+            "type": "string",
+            "description": "Active telephony provider (twilio, vonage, or bland)",
+            "sensitive": False
+        },
+        # Test mode verified phone number (used for trial compliance)
+        {
+            "key": "test_phone_number",
+            "value": app_settings.test_phone_number,
+            "type": "string",
+            "description": "Verified phone number to call in TEST MODE (Twilio trial restriction)",
+            "sensitive": False
+        },
         # API Keys (sensitive)
         {
             "key": "twilio_account_sid",
@@ -90,6 +108,71 @@ def init_default_settings(db: Session):
             "description": "Twilio phone number to make calls from (e.g., +1234567890)",
             "sensitive": False
         },
+       # Vonage credentials
+       {
+           "key": "vonage_api_key",
+           "value": "",
+           "type": "string",
+           "description": "Vonage API Key",
+           "sensitive": True
+       },
+       {
+           "key": "vonage_api_secret",
+           "value": "",
+           "type": "string",
+           "description": "Vonage API Secret",
+           "sensitive": True
+       },
+       {
+           "key": "vonage_from_number",
+           "value": "",
+           "type": "string",
+           "description": "Vonage virtual number to place calls from",
+           "sensitive": False
+       },
+       # Bland credentials and config
+       {
+           "key": "bland_api_key",
+           "value": app_settings.bland_api_key,
+           "type": "string",
+           "description": "Bland API Key",
+           "sensitive": True
+       },
+       {
+           "key": "bland_project_id",
+           "value": app_settings.bland_project_id,
+           "type": "string",
+           "description": "Bland Project/Agent ID (optional)",
+           "sensitive": False
+       },
+       {
+           "key": "bland_from_number",
+           "value": app_settings.bland_from_number,
+           "type": "string",
+           "description": "Bland verified caller ID (E.164)",
+           "sensitive": False
+       },
+       {
+           "key": "bland_webhook_base_url",
+           "value": app_settings.bland_webhook_base_url or app_settings.twilio_webhook_base_url,
+           "type": "string",
+           "description": "Public base URL for Bland webhooks (defaults to Twilio base if empty)",
+           "sensitive": False
+       },
+       # Telnyx
+       {"key": "telnyx_api_key", "value": app_settings.telnyx_api_key, "type": "string", "description": "Telnyx API Key", "sensitive": True},
+       {"key": "telnyx_from_number", "value": app_settings.telnyx_from_number, "type": "string", "description": "Telnyx From Number", "sensitive": False},
+       {"key": "telnyx_webhook_base_url", "value": app_settings.telnyx_webhook_base_url or app_settings.twilio_webhook_base_url, "type": "string", "description": "Telnyx Webhook Base URL", "sensitive": False},
+       # Plivo
+       {"key": "plivo_auth_id", "value": app_settings.plivo_auth_id, "type": "string", "description": "Plivo Auth ID", "sensitive": True},
+       {"key": "plivo_auth_token", "value": app_settings.plivo_auth_token, "type": "string", "description": "Plivo Auth Token", "sensitive": True},
+       {"key": "plivo_from_number", "value": app_settings.plivo_from_number, "type": "string", "description": "Plivo From Number", "sensitive": False},
+       {"key": "plivo_webhook_base_url", "value": app_settings.plivo_webhook_base_url or app_settings.twilio_webhook_base_url, "type": "string", "description": "Plivo Webhook Base URL", "sensitive": False},
+       # SignalWire
+       {"key": "signalwire_project", "value": app_settings.signalwire_project, "type": "string", "description": "SignalWire Project", "sensitive": True},
+       {"key": "signalwire_token", "value": app_settings.signalwire_token, "type": "string", "description": "SignalWire Token", "sensitive": True},
+       {"key": "signalwire_from_number", "value": app_settings.signalwire_from_number, "type": "string", "description": "SignalWire From Number", "sensitive": False},
+       {"key": "signalwire_webhook_base_url", "value": app_settings.signalwire_webhook_base_url or app_settings.twilio_webhook_base_url, "type": "string", "description": "SignalWire Webhook Base URL", "sensitive": False},
         {
             "key": "openai_api_key",
             "value": app_settings.openai_api_key,
@@ -104,6 +187,20 @@ def init_default_settings(db: Session):
             "description": "OpenAI model to use (e.g., gpt-4-turbo-preview, gpt-3.5-turbo)",
             "sensitive": False
         },
+       {
+           "key": "twilio_webhook_base_url",
+           "value": app_settings.twilio_webhook_base_url,
+           "type": "string",
+           "description": "Public base URL for Twilio webhooks (e.g., https://your-domain.com)",
+           "sensitive": False
+       },
+       {
+           "key": "vonage_webhook_base_url",
+           "value": "",
+           "type": "string",
+           "description": "Public base URL for Vonage webhooks (optional; defaults to Twilio base if empty)",
+           "sensitive": False
+       },
         # Call Configuration
         {
             "key": "citibank_phone_number",
@@ -253,10 +350,8 @@ async def toggle_mode(
         )
         
         # Force reload settings by clearing any cached instances
-        from services.twilio_service import twilio_service
-        if twilio_service:
-            # Re-initialize with new mode
-            logger.info("Reinitializing Twilio service with new mode")
+        # Re-initialization note: provider facade reads mode dynamically; no explicit reset needed
+        logger.info("Mode toggled; provider services will reflect new mode on next use.")
         
         logger.info(f"Mode toggled to {mode_name} by {user.username} using database runtime settings.")
         
@@ -429,6 +524,12 @@ async def update_setting(
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Admin access required")
     
+    # Server-side validation for certain keys
+    if key == "telephony_provider":
+        allowed = {"twilio", "vonage", "bland"}
+        if update.setting_value.lower() not in allowed:
+            raise HTTPException(status_code=400, detail=f"Invalid provider. Allowed: {', '.join(sorted(allowed))}")
+
     setting = set_setting(
         db=db,
         key=key,
@@ -437,7 +538,14 @@ async def update_setting(
         username=user.username
     )
     
-    logger.info(f"Setting '{key}' updated by {user.username} to: {update.setting_value}")
+    # Mask sensitive values in logs to avoid leaking secrets
+    masked_value = update.setting_value
+    if key in {"openai_api_key", "twilio_auth_token", "vonage_api_secret", "bland_api_key", "telnyx_api_key", "plivo_auth_id", "plivo_auth_token", "signalwire_project", "signalwire_token"}:
+        if isinstance(masked_value, str) and len(masked_value) > 8:
+            masked_value = masked_value[:4] + "****" + masked_value[-4:]
+        else:
+            masked_value = "****"
+    logger.info(f"Setting '{key}' updated by {user.username} to: {masked_value}")
     
     return {
         "success": True,

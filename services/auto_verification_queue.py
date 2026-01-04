@@ -128,10 +128,10 @@ class AutoVerificationQueue:
             
             # Optionally hang up current call
             if self.current_call_sid:
-                from services.twilio_service import get_twilio_service
-                twilio_service = get_twilio_service(self.db)
+                from services.telephony import get_telephony_service
+                telephony = get_telephony_service(self.db)
                 try:
-                    twilio_service.hangup_call(self.current_call_sid)
+                    telephony.hangup_call(self.current_call_sid)
                     logger.info(f"📞 Hung up current call: {self.current_call_sid}")
                 except Exception as e:
                     logger.error(f"Failed to hang up call: {e}")
@@ -147,7 +147,7 @@ def handle_verification_confirmed(db: Session, call_sid: str, verification_id: s
         call_sid: Current call SID
         verification_id: Verification that was just confirmed
     """
-    from services.twilio_service import get_twilio_service
+    from services.telephony import get_telephony_service
     from api.call_monitor import call_monitor
     
     logger.info(f"✅ Account verified for {verification_id} - hanging up immediately")
@@ -157,9 +157,9 @@ def handle_verification_confirmed(db: Session, call_sid: str, verification_id: s
     call_monitor.update_status(call_sid, "verified_hangup")
     
     # Hang up the call
-    twilio_service = get_twilio_service(db)
+    telephony = get_telephony_service(db)
     try:
-        twilio_service.hangup_call(call_sid)
+        telephony.hangup_call(call_sid)
         logger.info(f"📞 Call {call_sid} hung up successfully")
         call_monitor.add_event(call_sid, "call_ended", "Call terminated after verification")
     except Exception as e:

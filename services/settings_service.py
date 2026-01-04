@@ -61,6 +61,10 @@ class RuntimeSettings:
     def get_openai_model(self) -> str:
         """Get OpenAI Model."""
         return self.get("openai_model", env_settings.openai_model)
+
+    def get_test_phone_number(self) -> str:
+        """Get test phone number for trial/test mode calls."""
+        return self.get("test_phone_number", env_settings.test_phone_number)
     
     def get_max_concurrent_calls(self) -> int:
         """Get max concurrent calls."""

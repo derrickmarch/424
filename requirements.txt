@@ -13,6 +13,7 @@ psycopg[binary]==3.2.3
 
 # Twilio Integration
 twilio==8.11.1
+vonage==3.18.0
 
 # OpenAI Integration
 openai==1.10.0

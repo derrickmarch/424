@@ -10,9 +10,15 @@
             <h1>Dashboard</h1>
             <p>Monitor your account verification system</p>
         </div>
-        <div id="system-mode-badge" class="badge" style="font-size: 16px; padding: 10px 20px;">
-            <span class="spinner" style="width: 20px; height: 20px;"></span>
-        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+              <div id="system-mode-badge" class="badge" style="font-size: 16px; padding: 10px 20px;"></div>
+              <div id="mode-inline-note" style="display:none; font-size:12px; color:#666;">Balance checks are bypassed in TEST MODE.</div>
+           </div>
+               <span class="spinner" style="width: 20px; height: 20px;"></span>
+           </div>
+           <button id="toggle-mode-btn-dashboard" class="btn btn-primary btn-sm" onclick="toggleDashboardMode()" disabled>🔄 Toggle Mode</button>
+       </div>
     </div>
 </div>
 
@@ -38,22 +44,22 @@
 
 <!-- Twilio Usage Cards -->
 <div class="card">
-    <div class="card-header">💰 Twilio Account Usage (Live)</div>
+    <div class="card-header">💰 Provider Account Usage (Live) <small style="color:#666">(<span id="current-provider-label">...</span>)</small></div>
     <div class="stats-grid">
         <div class="stat-card">
-            <div class="stat-value" id="twilio-balance">Loading...</div>
+            <div class="stat-value" id="provider-balance">Loading...</div>
             <div class="stat-label">Account Balance</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value" id="twilio-minutes">0</div>
+            <div class="stat-value" id="provider-minutes">0</div>
             <div class="stat-label">Minutes Used (This Month)</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value" id="twilio-calls">0</div>
+            <div class="stat-value" id="provider-calls">0</div>
             <div class="stat-label">Total Calls (This Month)</div>
         </div>
         <div class="stat-card">
-            <div class="stat-value" id="twilio-status">...</div>
+            <div class="stat-value" id="provider-status">...</div>
             <div class="stat-label">Account Status</div>
         </div>
     </div>

@@ -8,6 +8,7 @@
     <h1>Settings</h1>
     <p>Configure your account verifier system</p>
 </div>
+<div id="alerts-container"></div>
 
 <div class="alert alert-info">
     <strong>Note:</strong> Settings are configured via the <code>.env</code> file. 
@@ -101,7 +102,7 @@
 </div>
 
 <div class="card">
-    <div class="card-header">🔑 API Keys & Credentials</div>
+    <div class="card-header">🔑 Telephony Provider & API Credentials</div>
     
     <div class="alert alert-warning">
         <strong>💡 Pro Tip:</strong> You can now edit API keys directly here! Changes take effect immediately without restarting.
@@ -109,12 +110,24 @@
     
     <form id="api-keys-form">
         <div class="form-group">
+            <label class="form-label">Telephony Provider</label>
+            <select id="telephony-provider" class="form-input">
+                <option value="twilio">Twilio</option>
+                <option value="vonage">Vonage (Nexmo)</option>
+                <option value="bland">Bland AI</option>
+                <option value="telnyx">Telnyx</option>
+                <option value="plivo">Plivo</option>
+                <option value="signalwire">SignalWire</option>
+            </select>
+            <div class="form-help">Choose which provider to use for outbound calls</div>
+        </div>
+        <div class="form-group provider-twilio">
             <label class="form-label">Twilio Account SID</label>
             <input type="text" id="twilio-sid" class="form-input" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxx">
             <div class="form-help">Get from: <a href="https://console.twilio.com" target="_blank">console.twilio.com</a></div>
         </div>
         
-        <div class="form-group">
+        <div class="form-group provider-twilio">
             <label class="form-label">Twilio Auth Token</label>
             <div style="display: flex; gap: 0.5rem;">
                 <input type="password" id="twilio-token" class="form-input" placeholder="••••••••••••••••" style="flex: 1;">
@@ -122,14 +135,124 @@
             </div>
         </div>
         
-        <div class="form-group">
+        <div class="form-group provider-twilio">
             <label class="form-label">Twilio Phone Number</label>
             <input type="text" id="twilio-phone" class="form-input" placeholder="+1234567890">
             <div class="form-help">Format: +1234567890 (include country code)</div>
         </div>
         
-        <div class="form-group">
-            <label class="form-label">OpenAI API Key</label>
+        <div class="form-group provider-vonage">
+            <label class="form-label">Vonage API Key</label>
+            <input type="text" id="vonage-key" class="form-input" placeholder="xxxxxxxx">
+        </div>
+        <div class="form-group provider-vonage">
+            <label class="form-label">Vonage API Secret</label>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="vonage-secret" class="form-input" placeholder="••••••••" style="flex: 1;">
+                <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('vonage-secret')">👁️</button>
+            </div>
+        </div>
+        <div class="form-group provider-vonage">
+            <label class="form-label">Vonage From Number</label>
+            <input type="text" id="vonage-from" class="form-input" placeholder="+1234567890">
+        </div>
+
+        <!-- Bland AI provider fields -->
+        <div class="form-group provider-bland">
+            <label class="form-label">Bland API Key</label>
+            <div style="display: flex; gap: 0.5rem;">
+                <input type="password" id="bland-api-key" class="form-input" placeholder="bland-••••••••" style="flex: 1;">
+                <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('bland-api-key')">👁️</button>
+            </div>
+            <div class="form-help">Get from your Bland dashboard</div>
+        </div>
+        <div class="form-group provider-bland">
+            <label class="form-label">Bland From Number</label>
+            <input type="text" id="bland-from-number" class="form-input" placeholder="+1234567890">
+            <div class="form-help">Must be a verified caller ID in Bland</div>
+        </div>
+        <div class="form-group provider-bland">
+            <label class="form-label">Bland Project/Agent ID (optional)</label>
+            <input type="text" id="bland-project-id" class="form-input" placeholder="project_or_agent_id">
+        </div>
+        <div class="form-group provider-bland">
+            <label class="form-label">Bland Webhook Base URL</label>
+            <input type="text" id="bland-webhook-base" class="form-input" placeholder="https://your-domain.com or https://<ngrok>.ngrok.io">
+            <div class="form-help">In Test Mode, ngrok/localhost are allowed. In Live Mode, use your public domain.</div>
+        </div>
+        
+       <!-- Telnyx provider fields -->
+       <div class="form-group provider-telnyx">
+           <label class="form-label">Telnyx API Key</label>
+           <div style="display: flex; gap: 0.5rem;">
+               <input type="password" id="telnyx-api-key" class="form-input" placeholder="sk_live_••••••" style="flex: 1;">
+               <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('telnyx-api-key')">👁️</button>
+           </div>
+       </div>
+       <div class="form-group provider-telnyx">
+           <label class="form-label">Telnyx From Number</label>
+           <input type="text" id="telnyx-from-number" class="form-input" placeholder="+1234567890">
+       </div>
+       <div class="form-group provider-telnyx">
+           <label class="form-label">Telnyx Webhook Base URL</label>
+           <input type="text" id="telnyx-webhook-base" class="form-input" placeholder="https://your-domain.com or https://<ngrok>.ngrok.io">
+       </div>
+
+       <!-- Plivo provider fields -->
+       <div class="form-group provider-plivo">
+           <label class="form-label">Plivo Auth ID</label>
+           <input type="text" id="plivo-auth-id" class="form-input" placeholder="MAxxxxxxxxxxxxxxxxx">
+       </div>
+       <div class="form-group provider-plivo">
+           <label class="form-label">Plivo Auth Token</label>
+           <div style="display: flex; gap: 0.5rem;">
+               <input type="password" id="plivo-auth-token" class="form-input" placeholder="••••••••" style="flex: 1;">
+               <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('plivo-auth-token')">👁️</button>
+           </div>
+       </div>
+       <div class="form-group provider-plivo">
+           <label class="form-label">Plivo From Number</label>
+           <input type="text" id="plivo-from-number" class="form-input" placeholder="+1234567890">
+       </div>
+       <div class="form-group provider-plivo">
+           <label class="form-label">Plivo Webhook Base URL</label>
+           <input type="text" id="plivo-webhook-base" class="form-input" placeholder="https://your-domain.com or https://<ngrok>.ngrok.io">
+       </div>
+
+       <!-- SignalWire provider fields -->
+       <div class="form-group provider-signalwire">
+           <label class="form-label">SignalWire Project</label>
+           <input type="text" id="signalwire-project" class="form-input" placeholder="your-project-id">
+       </div>
+       <div class="form-group provider-signalwire">
+           <label class="form-label">SignalWire Token</label>
+           <div style="display: flex; gap: 0.5rem;">
+               <input type="password" id="signalwire-token" class="form-input" placeholder="••••••••" style="flex: 1;">
+               <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('signalwire-token')">👁️</button>
+           </div>
+       </div>
+       <div class="form-group provider-signalwire">
+           <label class="form-label">SignalWire From Number</label>
+           <input type="text" id="signalwire-from-number" class="form-input" placeholder="+1234567890">
+       </div>
+       <div class="form-group provider-signalwire">
+           <label class="form-label">SignalWire Webhook Base URL</label>
+           <input type="text" id="signalwire-webhook-base" class="form-input" placeholder="https://your-domain.com or https://<ngrok>.ngrok.io">
+       </div>
+       
+        <div class="form-group provider-twilio">
+           <label class="form-label">Twilio Webhook Base URL</label>
+           <input type="text" id="twilio-webhook-base" class="form-input" placeholder="https://your-domain.com">
+           <div class="form-help">Used to construct Twilio webhook endpoints</div>
+       </div>
+       <div class="form-group provider-vonage">
+           <label class="form-label">Vonage Webhook Base URL</label>
+           <input type="text" id="vonage-webhook-base" class="form-input" placeholder="https://your-domain.com">
+           <div class="form-help">If empty, Twilio base URL will be used</div>
+       </div>
+       
+       <div class="form-group">
+           <label class="form-label">OpenAI API Key</label>
             <div style="display: flex; gap: 0.5rem;">
                 <input type="password" id="openai-key" class="form-input" placeholder="sk-••••••••••••••••" style="flex: 1;">
                 <button type="button" class="btn btn-secondary" onclick="togglePasswordVisibility('openai-key')">👁️</button>
@@ -156,6 +279,13 @@
             </button>
         </div>
     </form>
+</div>
+
+<div class="card">
+   <div class="card-header">📊 Provider Usage</div>
+   <div id="provider-usage">
+       <div class="spinner"></div>
+   </div>
 </div>
 
 <div class="card">
@@ -377,9 +507,15 @@ function hideSpinner() {
     // Implement or use existing spinner function
 }
 
-function showAlert(message, type) {
-    // Implement or use existing alert function
-    alert(message);
+function showAlert(message, type = 'info') {
+    const container = document.getElementById('alerts-container');
+    if (!container) { alert(message); return; }
+    const el = document.createElement('div');
+    el.className = `alert alert-${type}`;
+    el.innerHTML = `<span>${message}</span><button type="button" class="btn btn-link" style="float:right" onclick="this.parentElement.remove()">✖</button>`;
+    container.appendChild(el);
+    // Auto-dismiss after 4 seconds
+    setTimeout(() => { if (el && el.parentElement) el.parentElement.removeChild(el); }, 4000);
 }
 
 async function loadAgentInstructions() {
@@ -405,9 +541,9 @@ async function saveAgentInstructions() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ setting_key: 'agent_instructions', setting_value: value })
         });
-        alert('Instructions saved. New calls will use them.');
+        showAlert('Instructions saved. New calls will use them.', 'success');
     } catch (e) {
-        alert('Failed to save instructions');
+        showAlert('Failed to save instructions', 'danger');
     }
 }
 
@@ -435,16 +571,16 @@ async function changeCredentials() {
         });
         const data = await res.json();
         if (res.ok) {
-            alert('Credentials updated');
+            showAlert('Credentials updated', 'success');
             await loadCurrentUser();
             document.getElementById('current-password').value = '';
             document.getElementById('new-password').value = '';
             document.getElementById('new-username').value = '';
         } else {
-            alert(data.detail || 'Failed to update');
+            showAlert(data.detail || 'Failed to update', 'danger');
         }
     } catch (e) {
-        alert('Failed to update credentials');
+        showAlert('Failed to update credentials', 'danger');
     }
 }
 
@@ -489,15 +625,15 @@ async function toggleMode() {
         const data = await res.json();
         
         if (res.ok) {
-            alert('✅ ' + data.message);
+            showAlert('✅ ' + data.message, 'success');
             await loadCurrentMode();
         } else {
-            alert('❌ Failed to toggle mode: ' + (data.detail || 'Unknown error'));
+            showAlert('❌ Failed to toggle mode: ' + (data.detail || 'Unknown error'), 'danger');
             btn.disabled = false;
             btn.innerHTML = '🔄 Toggle Mode';
         }
     } catch (e) {
-        alert('❌ Failed to toggle mode: ' + e.message);
+        showAlert('❌ Failed to toggle mode: ' + e.message, 'danger');
         document.getElementById('toggle-mode-btn').disabled = false;
         document.getElementById('toggle-mode-btn').innerHTML = '🔄 Toggle Mode';
     }
@@ -526,8 +662,31 @@ async function loadAPIKeys() {
         document.getElementById('twilio-sid').value = settingsMap['twilio_account_sid'] || '';
         document.getElementById('twilio-token').value = settingsMap['twilio_auth_token'] || '';
         document.getElementById('twilio-phone').value = settingsMap['twilio_phone_number'] || '';
-        document.getElementById('openai-key').value = settingsMap['openai_api_key'] || '';
-        document.getElementById('openai-model').value = settingsMap['openai_model'] || 'gpt-4-turbo-preview';
+       document.getElementById('twilio-webhook-base').value = settingsMap['twilio_webhook_base_url'] || '';
+       document.getElementById('vonage-webhook-base').value = settingsMap['vonage_webhook_base_url'] || '';
+       document.getElementById('bland-api-key').value = settingsMap['bland_api_key'] || '';
+       document.getElementById('bland-from-number').value = settingsMap['bland_from_number'] || '';
+       document.getElementById('bland-project-id').value = settingsMap['bland_project_id'] || '';
+       document.getElementById('bland-webhook-base').value = settingsMap['bland_webhook_base_url'] || '';
+       document.getElementById('openai-key').value = settingsMap['openai_api_key'] || '';
+       document.getElementById('openai-model').value = settingsMap['openai_model'] || 'gpt-4-turbo-preview';
+       // Telnyx/Plivo/SignalWire
+       document.getElementById('telnyx-api-key').value = settingsMap['telnyx_api_key'] || '';
+       document.getElementById('telnyx-from-number').value = settingsMap['telnyx_from_number'] || '';
+       document.getElementById('telnyx-webhook-base').value = settingsMap['telnyx_webhook_base_url'] || '';
+       document.getElementById('plivo-auth-id').value = settingsMap['plivo_auth_id'] || '';
+       document.getElementById('plivo-auth-token').value = settingsMap['plivo_auth_token'] || '';
+       document.getElementById('plivo-from-number').value = settingsMap['plivo_from_number'] || '';
+       document.getElementById('plivo-webhook-base').value = settingsMap['plivo_webhook_base_url'] || '';
+       document.getElementById('signalwire-project').value = settingsMap['signalwire_project'] || '';
+       document.getElementById('signalwire-token').value = settingsMap['signalwire_token'] || '';
+       document.getElementById('signalwire-from-number').value = settingsMap['signalwire_from_number'] || '';
+       document.getElementById('signalwire-webhook-base').value = settingsMap['signalwire_webhook_base_url'] || '';
+        document.getElementById('telephony-provider').value = (settingsMap['telephony_provider'] || 'twilio');
+        document.getElementById('vonage-key').value = settingsMap['vonage_api_key'] || '';
+        document.getElementById('vonage-secret').value = settingsMap['vonage_api_secret'] || '';
+        document.getElementById('vonage-from').value = settingsMap['vonage_from_number'] || '';
+        updateProviderVisibility();
         
     } catch (error) {
         console.error('Failed to load API keys:', error);
@@ -538,11 +697,32 @@ async function saveAPIKeys(e) {
     e.preventDefault();
     
     const updates = [
+       { key: 'telephony_provider', value: document.getElementById('telephony-provider').value },
         { key: 'twilio_account_sid', value: document.getElementById('twilio-sid').value },
         { key: 'twilio_auth_token', value: document.getElementById('twilio-token').value },
         { key: 'twilio_phone_number', value: document.getElementById('twilio-phone').value },
+        { key: 'twilio_webhook_base_url', value: document.getElementById('twilio-webhook-base').value },
+        { key: 'vonage_webhook_base_url', value: document.getElementById('vonage-webhook-base').value },
+        { key: 'vonage_api_key', value: document.getElementById('vonage-key') ? document.getElementById('vonage-key').value : '' },
+        { key: 'vonage_api_secret', value: document.getElementById('vonage-secret') ? document.getElementById('vonage-secret').value : '' },
+        { key: 'vonage_from_number', value: document.getElementById('vonage-from') ? document.getElementById('vonage-from').value : '' },
         { key: 'openai_api_key', value: document.getElementById('openai-key').value },
-        { key: 'openai_model', value: document.getElementById('openai-model').value }
+        { key: 'openai_model', value: document.getElementById('openai-model').value },
+        { key: 'bland_api_key', value: document.getElementById('bland-api-key').value },
+        { key: 'bland_from_number', value: document.getElementById('bland-from-number').value },
+        { key: 'bland_project_id', value: document.getElementById('bland-project-id').value },
+        { key: 'bland_webhook_base_url', value: document.getElementById('bland-webhook-base').value },
+        { key: 'telnyx_api_key', value: document.getElementById('telnyx-api-key').value },
+        { key: 'telnyx_from_number', value: document.getElementById('telnyx-from-number').value },
+        { key: 'telnyx_webhook_base_url', value: document.getElementById('telnyx-webhook-base').value },
+        { key: 'plivo_auth_id', value: document.getElementById('plivo-auth-id').value },
+        { key: 'plivo_auth_token', value: document.getElementById('plivo-auth-token').value },
+        { key: 'plivo_from_number', value: document.getElementById('plivo-from-number').value },
+        { key: 'plivo_webhook_base_url', value: document.getElementById('plivo-webhook-base').value },
+        { key: 'signalwire_project', value: document.getElementById('signalwire-project').value },
+        { key: 'signalwire_token', value: document.getElementById('signalwire-token').value },
+        { key: 'signalwire_from_number', value: document.getElementById('signalwire-from-number').value },
+        { key: 'signalwire_webhook_base_url', value: document.getElementById('signalwire-webhook-base').value }
     ];
     
     try {
@@ -564,13 +744,43 @@ async function saveAPIKeys(e) {
             });
         }
         
-        alert('✅ API Keys saved successfully! They will be used for all new calls.');
+        showAlert('API Keys saved successfully! They will be used for all new calls.', 'success');
         
         // Reload to show masked values
         loadAPIKeys();
         
     } catch (error) {
-        alert('❌ Failed to save API keys: ' + error.message);
+        showAlert('Failed to save API keys: ' + error.message, 'danger');
+    }
+}
+
+function updateProviderVisibility() {
+    const provider = document.getElementById('telephony-provider').value;
+    document.querySelectorAll('.provider-twilio').forEach(el => el.style.display = provider === 'twilio' ? 'block' : 'none');
+    document.querySelectorAll('.provider-vonage').forEach(el => el.style.display = provider === 'vonage' ? 'block' : 'none');
+    document.querySelectorAll('.provider-bland').forEach(el => el.style.display = provider === 'bland' ? 'block' : 'none');
+    document.querySelectorAll('.provider-telnyx').forEach(el => el.style.display = provider === 'telnyx' ? 'block' : 'none');
+    document.querySelectorAll('.provider-plivo').forEach(el => el.style.display = provider === 'plivo' ? 'block' : 'none');
+    document.querySelectorAll('.provider-signalwire').forEach(el => el.style.display = provider === 'signalwire' ? 'block' : 'none');
+}
+
+async function loadProviderUsage() {
+    try {
+        const res = await fetch('/api/usage/provider');
+        const container = document.getElementById('provider-usage');
+        if (!res.ok) {
+            container.innerHTML = '<div class="alert alert-danger">Failed to load usage</div>';
+            return;
+        }
+        const data = await res.json();
+        const balance = data.balance !== undefined ? data.balance : 'N/A';
+        const currency = data.currency || 'USD';
+        container.innerHTML = `
+            <div class="form-group"><strong>Current Provider:</strong> ${document.getElementById('telephony-provider').value}</div>
+            <div class="form-group"><strong>Balance:</strong> ${currency} ${balance}</div>
+        `;
+    } catch (e) {
+        document.getElementById('provider-usage').innerHTML = '<div class="alert alert-danger">Failed to load usage</div>';
     }
 }
 
@@ -584,6 +794,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Attach API keys form submit
     document.getElementById('api-keys-form').addEventListener('submit', saveAPIKeys);
+    document.getElementById('telephony-provider').addEventListener('change', updateProviderVisibility);
 });
 </script>
 {% endblock %}

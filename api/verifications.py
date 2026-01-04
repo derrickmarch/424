@@ -19,7 +19,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/verifications", tags=["verifications"])
+router = APIRouter(prefix="/api/verifications", tags=["verifications"]) 
 
 
 @router.post("/", response_model=AccountVerificationResponse, status_code=status.HTTP_201_CREATED)
@@ -65,6 +65,32 @@ def list_verifications(
         raise
     except Exception as e:
         logger.error(f"Error listing verifications: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/incomplete", response_model=List[AccountVerificationResponse])
+def list_incomplete(
+    limit: int = 200,
+    db: Session = Depends(get_db)
+):
+    """List all uncompleted verifications (pending, calling, needs_human)."""
+    try:
+        from models import AccountVerification, VerificationStatus
+        incomplete_statuses = [
+            VerificationStatus.PENDING,
+            VerificationStatus.CALLING,
+            VerificationStatus.NEEDS_HUMAN,
+        ]
+        verifications = (
+            db.query(AccountVerification)
+            .filter(AccountVerification.status.in_(incomplete_statuses))
+            .order_by(AccountVerification.created_at.desc())
+            .limit(limit)
+            .all()
+        )
+        return verifications
+    except Exception as e:
+        logger.error(f"Error listing incomplete verifications: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
@@ -157,16 +183,19 @@ def update_verification(
         
         # Update fields
         verification.customer_name = verification_data.customer_name
-        verification.account_number = verification_data.account_number
-        verification.phone_number = verification_data.phone_number
+        verification.customer_phone = verification_data.customer_phone
         verification.company_name = verification_data.company_name
-        
-        if verification_data.company_phone:
-            verification.company_phone = verification_data.company_phone
-        if verification_data.address:
-            verification.address = verification_data.address
-        if verification_data.priority is not None:
-            verification.priority = verification_data.priority
+        verification.company_phone = verification_data.company_phone
+        verification.customer_email = verification_data.customer_email
+        verification.customer_address = verification_data.customer_address
+        verification.account_number = verification_data.account_number
+        verification.customer_date_of_birth = verification_data.customer_date_of_birth
+        verification.customer_ssn_last4 = verification_data.customer_ssn_last4
+        verification.customer_ssn_full = verification_data.customer_ssn_full
+        verification.additional_customer_info = verification_data.additional_customer_info
+        verification.verification_instruction = verification_data.verification_instruction
+        verification.information_to_collect = verification_data.information_to_collect
+        verification.priority = verification_data.priority if hasattr(verification_data, 'priority') and verification_data.priority is not None else verification.priority
         
         db.commit()
         db.refresh(verification)
@@ -217,8 +246,8 @@ def delete_verification(
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
-@router.post("/{verification_id}/retry")
-def retry_verification(
+@router.post("/{verification_id}/clear")
+def clear_verification(
     verification_id: str,
     db: Session = Depends(get_db)
 ):

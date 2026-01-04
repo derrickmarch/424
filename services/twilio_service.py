@@ -197,19 +197,32 @@ class TwilioService:
                     total_count = int(record.count) if hasattr(record, 'count') else 0
             
             # Get voice usage with more details
-            voice_usage = self.client.usage.records.list(
-                category='calls-inbound,calls-outbound',
+            # Twilio Usage API does not accept comma-separated categories; query separately and aggregate.
+            inbound_usage = self.client.usage.records.list(
+                category='calls-inbound',
                 start_date=start_of_month.date(),
                 end_date=today.date(),
-                limit=10
+                limit=100
             )
-            
+            outbound_usage = self.client.usage.records.list(
+                category='calls-outbound',
+                start_date=start_of_month.date(),
+                end_date=today.date(),
+                limit=100
+            )
+
             total_call_count = 0
-            total_call_minutes = 0
-            for record in voice_usage:
-                total_call_minutes += float(record.usage)
-                total_call_count += int(record.count) if hasattr(record, 'count') else 0
-            
+            total_call_minutes = 0.0
+            for record in list(inbound_usage) + list(outbound_usage):
+                try:
+                    total_call_minutes += float(getattr(record, 'usage', 0) or 0)
+                except Exception:
+                    pass
+                try:
+                    total_call_count += int(getattr(record, 'count', 0) or 0)
+                except Exception:
+                    pass
+
             return {
                 'balance': str(balance.balance),
                 'currency': str(balance.currency),

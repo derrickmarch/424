@@ -106,12 +106,18 @@ async function loadSystemModeBadge() {
 
 async function loadUsageData() {
     try {
-        const usage = await apiCall('/api/usage/twilio');
+        const usage = await apiCall('/api/usage/provider');
+        try {
+            const providerSetting = await apiCall('/api/settings/telephony_provider');
+            const prov = (providerSetting && providerSetting.setting_value) ? providerSetting.setting_value : 'twilio';
+            const labelEl = document.getElementById('current-provider-label');
+            if (labelEl) labelEl.textContent = prov.toUpperCase();
+        } catch (e) { /* no-op */ }
         displayUsageData(usage);
     } catch (error) {
         console.error('Failed to load usage data:', error);
-        document.getElementById('twilio-balance').textContent = 'Error';
-        document.getElementById('twilio-status').textContent = 'Error';
+        const balEl = document.getElementById('provider-balance'); if (balEl) balEl.textContent = 'Error';
+        const stEl = document.getElementById('provider-status'); if (stEl) stEl.textContent = 'Error';
     }
 }
 
@@ -119,17 +125,17 @@ function displayUsageData(usage) {
     // Display balance
     if (usage.balance && usage.balance !== 'N/A') {
         const balance = parseFloat(usage.balance);
-        document.getElementById('twilio-balance').textContent = `${usage.currency} ${balance.toFixed(2)}`;
+        document.getElementById('provider-balance').textContent = `${usage.currency} ${balance.toFixed(2)}`;
     } else {
-        document.getElementById('twilio-balance').textContent = usage.error ? 'Error' : 'N/A';
+        document.getElementById('provider-balance').textContent = usage.error ? 'Error' : 'N/A';
     }
     
     // Display minutes and calls
-    document.getElementById('twilio-minutes').textContent = usage.usage?.total_minutes || 0;
-    document.getElementById('twilio-calls').textContent = usage.usage?.total_calls || 0;
+    document.getElementById('provider-minutes').textContent = usage.usage?.total_minutes || 0;
+    document.getElementById('provider-calls').textContent = usage.usage?.total_calls || 0;
     
     // Display account status
-    const status = usage.account_status || 'unknown';
+    const status = usage.account_status || usage.status || 'unknown';
     let statusBadge = '';
     if (status === 'active') {
         statusBadge = '<span class="badge badge-success">Active</span>';
@@ -291,14 +297,99 @@ function displayVerificationsList(verifications) {
             <td>${getStatusBadge(v.status)}</td>
             <td>${v.attempt_count}</td>
             <td>
-                <button class="btn btn-sm btn-primary" onclick="viewVerification('${v.verification_id}')">
-                    View
-                </button>
+                <div class="btn-group">
+                    <button class="btn btn-sm btn-primary" onclick="viewVerification('${v.verification_id}')">View</button>
+                    <button class="btn btn-sm btn-secondary" onclick="editVerification('${v.verification_id}')">Edit</button>
+                    <button class="btn btn-sm btn-warning" onclick="clearVerification('${v.verification_id}')">Clear</button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteVerification('${v.verification_id}')">Delete</button>
+                </div>
             </td>
         `;
         tbody.appendChild(row);
     });
 }
+
+async function deleteVerification(verificationId) {
+   if (!confirm(`Delete verification ${verificationId}? This cannot be undone.`)) return;
+   try {
+       await apiCall(`/api/verifications/${verificationId}`, { method: 'DELETE' });
+       showAlert('Verification deleted', 'success');
+       loadVerifications();
+   } catch (e) {
+       showAlert('Failed to delete: ' + e.message, 'danger');
+   }
+}
+
+async function clearVerification(verificationId) {
+   if (!confirm(`Clear status for ${verificationId}? This will reset attempts and remove logs.`)) return;
+   try {
+       await apiCall(`/api/verifications/${verificationId}/clear`, { method: 'POST' });
+       showAlert('Verification cleared', 'success');
+       loadVerifications();
+   } catch (e) {
+       showAlert('Failed to clear: ' + e.message, 'danger');
+   }
+}
+
+async function editVerification(verificationId) {
+    try {
+        const v = await apiCall(`/api/verifications/${verificationId}`);
+        // Populate modal form
+        document.getElementById('edit-verification-id').value = v.verification_id;
+        document.getElementById('edit-customer-name').value = v.customer_name || '';
+        document.getElementById('edit-customer-phone').value = v.customer_phone || '';
+        document.getElementById('edit-company-name').value = v.company_name || '';
+        document.getElementById('edit-company-phone').value = v.company_phone || '';
+        document.getElementById('edit-account-number').value = v.account_number || '';
+        document.getElementById('edit-customer-email').value = v.customer_email || '';
+        document.getElementById('edit-customer-address').value = v.customer_address || '';
+        document.getElementById('edit-priority').value = v.priority || 0;
+        openModal('edit-verification-modal');
+    } catch (e) {
+        showAlert('Failed to load for edit: ' + e.message, 'danger');
+    }
+}
+
+// Handle edit modal submit
+(function attachEditHandler(){
+    document.addEventListener('DOMContentLoaded', () => {
+        const form = document.getElementById('edit-verification-form');
+        if (!form) return;
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            try {
+                const id = document.getElementById('edit-verification-id').value;
+                const payload = {
+                    verification_id: id,
+                    customer_name: document.getElementById('edit-customer-name').value,
+                    customer_phone: document.getElementById('edit-customer-phone').value,
+                    company_name: document.getElementById('edit-company-name').value,
+                    company_phone: document.getElementById('edit-company-phone').value,
+                    customer_email: document.getElementById('edit-customer-email').value || null,
+                    customer_address: document.getElementById('edit-customer-address').value || null,
+                    account_number: document.getElementById('edit-account-number').value || null,
+                    customer_date_of_birth: null,
+                    customer_ssn_last4: null,
+                    customer_ssn_full: null,
+                    additional_customer_info: null,
+                    verification_instruction: null,
+                    information_to_collect: null,
+                    priority: parseInt(document.getElementById('edit-priority').value || '0', 10)
+                };
+                await apiCall(`/api/verifications/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                showAlert('Verification updated', 'success');
+                closeModal('edit-verification-modal');
+                loadVerifications();
+            } catch (err) {
+                showAlert('Failed to save: ' + err.message, 'danger');
+            }
+        });
+    });
+})();
 
 async function viewVerification(verificationId) {
     // Use the new detailed record viewer
@@ -348,6 +439,14 @@ function displayVerificationDetails(v) {
     `;
     
     modal.classList.add('active');
+}
+
+function openModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.style.display = 'block';
+        modal.classList.add('active');
+    }
 }
 
 function closeModal(modalId) {
@@ -463,6 +562,49 @@ async function logout() {
 }
 
 // Initialize page-specific functions
+async function loadDashboardMode() {
+    try {
+        const res = await fetch('/api/settings/mode');
+        if (res.ok) {
+            const data = await res.json();
+            const badge = document.getElementById('system-mode-badge');
+            const btn = document.getElementById('toggle-mode-btn-dashboard');
+            if (badge) {
+                if (data.test_mode) {
+                    badge.innerHTML = '🧪 TEST MODE';
+                    badge.className = 'badge badge-warning';
+                } else {
+                    badge.innerHTML = '📞 LIVE MODE';
+                    badge.className = 'badge badge-success';
+                }
+                const note = document.getElementById('mode-inline-note');
+                if (note) note.style.display = data.test_mode ? 'block' : 'none';
+            }
+            if (btn) btn.disabled = false;
+        }
+    } catch (e) { console.error('Failed to load dashboard mode', e); }
+}
+
+async function toggleDashboardMode() {
+    if (!confirm('Toggle between Test Mode and Live Mode? On local, you may need to restart the service for changes to fully apply. Continue?')) return;
+    const btn = document.getElementById('toggle-mode-btn-dashboard');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Toggling...'; }
+    try {
+        const res = await fetch('/api/settings/mode/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+        const data = await res.json();
+        if (res.ok) {
+            alert('✅ ' + data.message + (data.restart_required ? '\nOn local, please restart the server to apply.' : ''));
+            await loadDashboardMode();
+        } else {
+            alert('❌ Failed to toggle mode: ' + (data.detail || 'Unknown error'));
+        }
+    } catch (e) {
+        alert('❌ Failed to toggle mode: ' + e.message);
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '🔄 Toggle Mode'; }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const page = document.body.dataset.page;
     
@@ -471,8 +613,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Refresh dashboard every 30 seconds
         setInterval(loadDashboard, 30000);
         // Refresh usage data every 60 seconds
-        setInterval(loadUsageData, 60000);
-    } else if (page === 'verifications') {
-        loadVerifications();
+       setInterval(loadUsageData, 60000);
+       // Load mode badge and enable toggle on dashboard
+       loadDashboardMode();
+   } else if (page === 'verifications') {
+       loadVerifications();
     }
 });

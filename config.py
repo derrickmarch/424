@@ -16,16 +16,42 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_phone_number: str = ""
     twilio_webhook_base_url: str = ""
+
+    # Bland AI - optional
+    bland_api_key: str = ""
+    bland_project_id: str = ""
+    bland_from_number: str = ""
+    bland_webhook_base_url: str = ""
+
+    # Telnyx
+    telnyx_api_key: str = ""
+    telnyx_from_number: str = ""
+    telnyx_webhook_base_url: str = ""
+
+    # Plivo
+    plivo_auth_id: str = ""
+    plivo_auth_token: str = ""
+    plivo_from_number: str = ""
+    plivo_webhook_base_url: str = ""
+
+    # SignalWire
+    signalwire_project: str = ""
+    signalwire_token: str = ""
+    signalwire_from_number: str = ""
+    signalwire_webhook_base_url: str = ""
     
     # OpenAI - Made optional with default for easier testing
     openai_api_key: str = ""
     openai_model: str = "gpt-4-turbo-preview"
     
     # Application
-    app_host: str = "0.0.0.0"
+    app_host: str = "127.0.0.1"
     app_port: int = 8001
     app_env: str = "development"
     secret_key: str = "dev-secret-key-change-in-production"  # Must be set in production
+
+    # Provider selection (optional env fallback; DB SystemSettings takes precedence)
+    telephony_provider: str = ""
     
     # Testing Mode
     test_mode: bool = True  # True = mock calls, False = real calls
@@ -50,12 +76,27 @@ class Settings(BaseSettings):
             if override and override.setting_value:
                 runtime_mode = override.setting_value.lower() in ('true', '1', 'yes')
                 return runtime_mode
-        except:
+        except Exception:
             # If database is not available or not initialized yet, use env var
             pass
         
         # Fall back to environment variable
         return self.test_mode
+
+    def get_test_phone_number(self) -> str:
+        """Get test phone number (DB override first, then env)."""
+        try:
+            from database import get_db
+            db = next(get_db())
+            from models import SystemSettings
+            setting = db.query(SystemSettings).filter(
+                SystemSettings.setting_key == "test_phone_number"
+            ).first()
+            if setting and setting.setting_value:
+                return setting.setting_value
+        except Exception:
+            pass
+        return self.test_phone_number
     
     # Call Settings
     max_concurrent_calls: int = 1

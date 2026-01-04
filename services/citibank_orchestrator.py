@@ -5,7 +5,7 @@ Handles batch processing and record rotation logic.
 from sqlalchemy.orm import Session
 from models import CustomerRecord, AccountStatus, SystemSettings
 from services.citibank_agent_service import citibank_agent
-from services.twilio_service import twilio_service
+# from services.twilio_service import twilio_service  # Not used with provider abstraction
 from datetime import datetime
 from typing import Optional, List
 import logging
@@ -169,10 +169,51 @@ class CitibankCallOrchestrator:
                 credit_card=record.credit_card_number
             )
             
-            # TODO: Integrate with Twilio to make actual call
-            # Get phone number from settings
+            # Initiate a real outbound call via telephony provider (Twilio/Vonage)
+            from services.telephony import get_telephony_service
+            from services.settings_service import get_runtime_settings
+            from config import settings as env_settings
+            from models import CallLog
+
+            telephony = get_telephony_service(self.db)
             citibank_number = self.get_citibank_phone_number()
-            logger.info(f"Would call {citibank_number} for verification")
+
+            # Build webhook URLs (reuse Twilio endpoints for status logging)
+            runtime = get_runtime_settings(self.db)
+            base_url = runtime.get("twilio_webhook_base_url", env_settings.twilio_webhook_base_url)
+            # Voice webhook will return simple TwiML; for Citibank flow we still simulate conversation
+            voice_webhook_url = f"{base_url}/api/twilio/voice?verification_id=citibank"
+            status_callback_url = f"{base_url}/api/twilio/status-callback"
+
+            call_sid = ""
+            try:
+                call_sid = telephony.make_outbound_call(
+                    to_number=citibank_number,
+                    verification_id=str(record.record_id),
+                    webhook_url=voice_webhook_url,
+                    status_callback_url=status_callback_url,
+                )
+                # Persist call_sid on the record
+                record.call_sid = call_sid
+                self.db.commit()
+
+                # Create call log entry
+                call_log = CallLog(
+                    verification_id=str(record.record_id),
+                    call_sid=call_sid,
+                    direction="outbound",
+                    from_number=telephony.get_from_number() or env_settings.twilio_phone_number,
+                    to_number=citibank_number,
+                    call_status="initiated",
+                    attempt_number=record.attempt_count,
+                    initiated_at=datetime.utcnow(),
+                )
+                self.db.add(call_log)
+                self.db.commit()
+                logger.info(f"Initiated Citibank call {call_sid} for record {record.record_id} to {citibank_number}")
+            except Exception as e:
+                logger.error(f"Failed to initiate Citibank call for record {record.record_id}: {e}")
+                # Continue with simulation but mark notes
             
             # For now, use simulation
             conversation, result = citibank_agent.simulate_call({
@@ -277,8 +318,51 @@ class CitibankCallOrchestrator:
                     credit_card=record.credit_card_number
                 )
                 
-                # TODO: Integrate with Twilio - pass all records to make one call
-                # For now, simulate each account
+                # Initiate a single outbound call for the whole batch on first account only
+                if i == 0:
+                    from services.telephony import get_telephony_service
+                    from services.settings_service import get_runtime_settings
+                    from config import settings as env_settings
+                    from models import CallLog
+
+                    telephony = get_telephony_service(self.db)
+                    citibank_number = self.get_citibank_phone_number()
+
+                    runtime = get_runtime_settings(self.db)
+                    base_url = runtime.get("twilio_webhook_base_url", env_settings.twilio_webhook_base_url)
+                    voice_webhook_url = f"{base_url}/api/twilio/voice?verification_id=citibank-batch"
+                    status_callback_url = f"{base_url}/api/twilio/status-callback"
+
+                    try:
+                        call_sid = telephony.make_outbound_call(
+                            to_number=citibank_number,
+                            verification_id=f"citibank-batch-{records[0].record_id}",
+                            webhook_url=voice_webhook_url,
+                            status_callback_url=status_callback_url,
+                        )
+                        # Persist call_sid on all records in this batch
+                        for r in records:
+                            r.call_sid = call_sid
+                        self.db.commit()
+
+                        call_log = CallLog(
+                            verification_id=f"citibank-batch-{records[0].record_id}",
+                            call_sid=call_sid,
+                            direction="outbound",
+                            from_number=telephony.get_from_number() or env_settings.twilio_phone_number,
+                            to_number=citibank_number,
+                            call_status="initiated",
+                            attempt_number=record.attempt_count,
+                            initiated_at=datetime.utcnow(),
+                        )
+                        self.db.add(call_log)
+                        self.db.commit()
+                        logger.info(f"Initiated single Citibank call {call_sid} for {len(records)} records to {citibank_number}")
+                    except Exception as e:
+                        logger.error(f"Failed to initiate batch Citibank call: {e}")
+                        # Continue with simulation anyway
+                
+                # Continue with simulation for conversation flow per account
                 conversation, result = citibank_agent.simulate_call({
                     'ssn': record.ssn,
                     'credit_card_number': record.credit_card_number,

@@ -46,11 +46,59 @@
 <!-- Modal for Verification Details -->
 <div id="verification-modal" class="modal">
     <div class="modal-content">
+        <button class="close-btn" onclick="closeModal('verification-modal')">×</button>
         <div class="modal-header">Verification Details</div>
         <div id="verification-details"></div>
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeModal('verification-modal')">Close</button>
         </div>
+    </div>
+</div>
+
+<!-- Modal for Edit Verification -->
+<div id="edit-verification-modal" class="modal">
+    <div class="modal-content" style="max-width: 700px;">
+        <button class="close-btn" onclick="closeModal('edit-verification-modal')">×</button>
+        <div class="modal-header">Edit Verification</div>
+        <form id="edit-verification-form">
+            <input type="hidden" id="edit-verification-id">
+            <div class="form-group">
+                <label class="form-label">Customer Name</label>
+                <input type="text" id="edit-customer-name" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Phone (+1XXXXXXXXXX)</label>
+                <input type="text" id="edit-customer-phone" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Company Name</label>
+                <input type="text" id="edit-company-name" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Company Phone (+1XXXXXXXXXX)</label>
+                <input type="text" id="edit-company-phone" class="form-input" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Account Number (optional)</label>
+                <input type="text" id="edit-account-number" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Email (optional)</label>
+                <input type="email" id="edit-customer-email" class="form-input">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Customer Address (optional)</label>
+                <textarea id="edit-customer-address" class="form-input" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <input type="number" id="edit-priority" class="form-input" min="0" value="0">
+            </div>
+            <div class="modal-footer" style="display:flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-verification-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}

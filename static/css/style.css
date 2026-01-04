@@ -397,15 +397,36 @@ tr:hover {
 }
 
 .modal-content {
-    background: white;
-    border-radius: 0.5rem;
-    padding: 2rem;
-    max-width: 600px;
-    width: 90%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
-    position: relative;
+   background: white;
+   border-radius: 0.5rem;
+   padding: 2rem;
+   max-width: 600px;
+   width: 90%;
+   max-height: 90vh;
+   overflow-y: auto;
+   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+   position: relative;
+   animation: modalIn 180ms ease-out;
+}
+
+@keyframes modalIn {
+   from { transform: translateY(10px) scale(0.98); opacity: 0; }
+   to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.modal .close-btn {
+   position: absolute;
+   top: 10px;
+   right: 10px;
+   background: transparent;
+   border: none;
+   font-size: 20px;
+   color: var(--gray-700);
+   cursor: pointer;
+}
+
+.modal .close-btn:hover {
+   color: var(--gray-900);
 }
 
 .modal-header {

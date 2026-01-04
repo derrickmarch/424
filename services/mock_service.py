@@ -29,7 +29,7 @@ class MockTwilioService:
         """
         from config import settings
         # In test mode, override the number to always call the verified test number
-        test_number = settings.test_phone_number
+        test_number = settings.get_test_phone_number()
         actual_to_number = test_number
         
         # Generate a fake call SID
@@ -165,17 +165,29 @@ class MockTwilioService:
                 today = datetime.now()
                 start_of_month = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
                 
-                # Get voice usage
-                voice_usage = client.usage.records.list(
-                    category='calls-inbound,calls-outbound',
+                # Get voice usage (Twilio Usage API requires separate queries per category)
+                inbound_usage = client.usage.records.list(
+                    category='calls-inbound',
                     start_date=start_of_month.date(),
                     end_date=today.date(),
-                    limit=10
+                    limit=100
                 )
-                
-                for record in voice_usage:
-                    total_call_minutes += float(record.usage)
-                    total_call_count += int(record.count) if hasattr(record, 'count') else 0
+                outbound_usage = client.usage.records.list(
+                    category='calls-outbound',
+                    start_date=start_of_month.date(),
+                    end_date=today.date(),
+                    limit=100
+                )
+
+                for record in list(inbound_usage) + list(outbound_usage):
+                    try:
+                        total_call_minutes += float(getattr(record, 'usage', 0) or 0)
+                    except Exception:
+                        pass
+                    try:
+                        total_call_count += int(getattr(record, 'count', 0) or 0)
+                    except Exception:
+                        pass
                 
                 usage_start = start_of_month.isoformat()
                 usage_end = today.isoformat()

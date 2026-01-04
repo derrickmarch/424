@@ -134,12 +134,12 @@ class CallMonitor:
             
             # Send to all connected clients for this call
             disconnected = []
+            from anyio import from_thread
             for connection in active_connections[call_sid]:
                 try:
-                    # Note: This is synchronous, in production use async
-                    # For now, we'll just store and let the websocket endpoint handle it
-                    pass
-                except:
+                    # Push update to clients without blocking the event loop
+                    from_thread.run(connection.send_text, message)
+                except Exception:
                     disconnected.append(connection)
             
             # Clean up disconnected clients

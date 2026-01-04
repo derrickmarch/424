@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from models import CallLog, CallOutcome, CallSchedule
 from schemas import CallContext
 from services.verification_service import VerificationService
-from services.twilio_service import get_twilio_service
+from services.telephony import get_telephony_service
 from services.ai_agent_service import ai_agent_service
 from config import settings
 import logging
@@ -27,7 +27,7 @@ class CallOrchestrator:
     
     def __init__(self, db: Session):
         self.db = db
-        self.twilio_service = get_twilio_service(db)
+        self.telephony = get_telephony_service(db)
         self.verification_service = VerificationService(db)
     
     def should_retry(self, verification_id: str) -> tuple[bool, Optional[int]]:
@@ -75,26 +75,26 @@ class CallOrchestrator:
         if not verification:
             raise ValueError(f"Verification {verification_id} not found")
         
-        # Check Twilio account balance before making call
+        # Check provider account balance before making call
         try:
-            balance_info = twilio_service.get_account_balance()
+            balance_info = self.telephony.get_account_balance()
             if 'error' not in balance_info:
                 balance = float(balance_info.get('balance', 0))
                 currency = balance_info.get('currency', 'USD')
                 
                 # Warn if balance is low (less than $5)
                 if balance < 5.0:
-                    logger.warning(f"⚠️ LOW BALANCE WARNING: Twilio account balance is {currency} {balance:.2f}")
-                    if balance <= 0:
-                        raise ValueError(f"Insufficient Twilio balance ({currency} {balance:.2f}). Please add funds to your account.")
+                    logger.warning(f"⚠️ LOW BALANCE WARNING: Provider balance is {currency} {balance:.2f}")
+                    if balance <= 0 and not settings.get_test_mode():
+                        raise ValueError(f"Insufficient balance ({currency} {balance:.2f}). Please add funds to your account.")
                 else:
-                    logger.info(f"✓ Twilio balance check: {currency} {balance:.2f}")
+                    logger.info(f"✓ Provider balance check: {currency} {balance:.2f}")
         except ValueError:
             # Re-raise insufficient balance errors
             raise
         except Exception as e:
             # Log balance check errors but don't block calls (might be trial account limitations)
-            logger.warning(f"Could not check Twilio balance (continuing anyway): {e}")
+            logger.warning(f"Could not check provider balance (continuing anyway): {e}")
         
         # Check if we should retry
         should_retry, wait_minutes = self.should_retry(verification_id)
@@ -104,9 +104,69 @@ class CallOrchestrator:
             else:
                 raise ValueError(f"Verification {verification_id} has exceeded max retry attempts")
         
-        # Build webhook URLs
-        voice_webhook_url = f"{webhook_base_url}/api/twilio/voice?verification_id={verification_id}"
-        status_callback_url = f"{webhook_base_url}/api/twilio/status-callback"
+        # Build webhook URLs based on selected provider
+        from services.settings_service import get_runtime_settings
+        runtime = get_runtime_settings(self.db)
+        provider = (runtime.get("telephony_provider", "twilio") or "twilio").lower()
+
+        # Choose base URL precedence: provider-specific (DB) > provided arg > env setting
+        provided_base = (webhook_base_url or "").rstrip("/") if webhook_base_url else ""
+        if provider == "vonage":
+            vonage_base = (runtime.get("vonage_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url).rstrip("/")
+            voice_webhook_url = f"{vonage_base}/api/vonage/answer?verification_id={verification_id}"
+            status_callback_url = f"{vonage_base}/api/vonage/event"
+        elif provider == "bland":
+            bland_base = (runtime.get("bland_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url or "").rstrip("/")
+            # Validation handled similarly as before
+            try:
+                from urllib.parse import urlparse
+                host = urlparse(bland_base).hostname or ""
+                is_test = settings.get_test_mode()
+                if not is_test:
+                    if not bland_base:
+                        raise RuntimeError("Bland webhook base URL is required in live mode.")
+                    if "ngrok" in host or host in ("localhost", "127.0.0.1"):
+                        raise RuntimeError("In live mode, configure a public custom domain for webhooks (not ngrok/localhost).")
+            except Exception:
+                raise
+            voice_webhook_url = f"{bland_base}/api/bland/webhook" if bland_base else ""
+            status_callback_url = f"{bland_base}/api/bland/webhook" if bland_base else ""
+        elif provider == "telnyx":
+            telnyx_base = (runtime.get("telnyx_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url or "").rstrip("/")
+            voice_webhook_url = f"{telnyx_base}/api/telnyx/webhook" if telnyx_base else ""
+            status_callback_url = f"{telnyx_base}/api/telnyx/webhook" if telnyx_base else ""
+        elif provider == "plivo":
+            plivo_base = (runtime.get("plivo_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url or "").rstrip("/")
+            voice_webhook_url = f"{plivo_base}/api/plivo/webhook" if plivo_base else ""
+            status_callback_url = f"{plivo_base}/api/plivo/webhook" if plivo_base else ""
+        elif provider == "signalwire":
+            sw_base = (runtime.get("signalwire_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url or "").rstrip("/")
+            voice_webhook_url = f"{sw_base}/api/signalwire/webhook" if sw_base else ""
+            status_callback_url = f"{sw_base}/api/signalwire/webhook" if sw_base else ""
+            bland_base = (runtime.get("bland_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url or "").rstrip("/")
+            # In TEST mode we allow ngrok/localhost; in LIVE mode we require a custom public domain
+            try:
+                from urllib.parse import urlparse
+                host = urlparse(bland_base).hostname or ""
+                is_test = settings.get_test_mode()
+                if not is_test:
+                    if not bland_base:
+                        raise RuntimeError("Bland webhook base URL is required in live mode.")
+                    if "ngrok" in host or host in ("localhost", "127.0.0.1"):
+                        raise RuntimeError("In live mode, configure a public custom domain for webhooks (not ngrok/localhost).")
+                else:
+                    if not bland_base:
+                        logger.warning("TEST MODE: bland_webhook_base_url is empty. Set it to your ngrok URL to receive webhooks during tests.")
+            except Exception as _e:
+                # If validation fails, re-raise so the caller can surface to user
+                raise
+            # Bland agent will call this webhook with results
+            voice_webhook_url = f"{bland_base}/api/bland/webhook" if bland_base else ""
+            status_callback_url = f"{bland_base}/api/bland/webhook" if bland_base else ""
+        else:
+            twilio_base = (runtime.get("twilio_webhook_base_url", None) or provided_base or settings.twilio_webhook_base_url).rstrip("/")
+            voice_webhook_url = f"{twilio_base}/api/twilio/voice?verification_id={verification_id}"
+            status_callback_url = f"{twilio_base}/api/twilio/status-callback"
         
         try:
             # Start call monitoring
@@ -119,7 +179,7 @@ class CallOrchestrator:
                 "company": verification.company_name
             })
             
-            call_sid = self.twilio_service.make_outbound_call(
+            call_sid = self.telephony.make_outbound_call(
                 to_number=verification.company_phone,
                 verification_id=verification_id,
                 webhook_url=voice_webhook_url,
@@ -141,7 +201,7 @@ class CallOrchestrator:
                 verification_id=verification_id,
                 call_sid=call_sid,
                 direction="outbound",
-                from_number=settings.twilio_phone_number,
+                from_number=self.telephony.get_from_number() or settings.twilio_phone_number,
                 to_number=verification.company_phone,
                 call_status="initiated",
                 attempt_number=verification.attempt_count,
@@ -219,7 +279,7 @@ class CallOrchestrator:
             })
             
             # If account is verified, hang up immediately and move to next
-            if result.account_exists and result.call_outcome == CallOutcome.VERIFIED:
+            if result.account_exists and result.call_outcome == CallOutcome.ACCOUNT_FOUND:
                 logger.info(f"✅ Account verified for {verification.verification_id} - ending call immediately")
                 monitor.add_event(call_sid, "auto_hangup", "Account verified - terminating call to save time")
                 
@@ -265,15 +325,15 @@ class CallOrchestrator:
         Args:
             max_verifications: Maximum number of verifications to process
         """
-        # Check Twilio balance before processing batch
+        # Check provider balance before processing batch
         try:
-            balance_info = twilio_service.get_account_balance()
+            balance_info = self.telephony.get_account_balance()
             if 'error' not in balance_info:
                 balance = float(balance_info.get('balance', 0))
                 currency = balance_info.get('currency', 'USD')
-                logger.info(f"📊 Starting batch with Twilio balance: {currency} {balance:.2f}")
+                logger.info(f"📊 Starting batch with provider balance: {currency} {balance:.2f}")
                 
-                if balance < 2.0:
+                if balance < 2.0 and not settings.get_test_mode():
                     logger.error(f"⚠️ Batch processing cancelled: Insufficient balance ({currency} {balance:.2f})")
                     return 0, 0, 0
                 elif balance < 5.0:

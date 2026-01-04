@@ -1,9 +1,9 @@
 """
 Advanced search and filtering API.
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 from database import get_db
 from typing import Optional, List
 from datetime import datetime
@@ -103,7 +103,7 @@ async def search_verifications(
             "limit": limit,
             "results": [
                 {
-                    "id": v.id,
+                    "id": v.verification_id,
                     "verification_id": v.verification_id,
                     "customer_name": v.customer_name,
                     "account_number": v.account_number,
@@ -147,7 +147,7 @@ async def get_filter_options(db: Session = Depends(get_db)):
         # Get status counts
         status_counts = db.query(
             AccountVerification.status,
-            func.count(AccountVerification.id)
+            func.count(AccountVerification.verification_id)
         ).group_by(AccountVerification.status).all()
         
         return {
