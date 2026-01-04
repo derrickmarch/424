@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Audit Logs{% endblock %}
+{% block page_name %}admin_audit{% endblock %}
+
+{% block content %}
+<h1>Admin - Audit Logs</h1>
+<p>Review recent system activity.</p>
+
+<div class="card">
+  <h2>Filters</h2>
+  <div class="controls" style="display:flex; gap:0.5rem; flex-wrap: wrap; align-items:center; margin-bottom: 0.5rem;">
+    <input type="number" id="flt_user_id" placeholder="User ID" style="width:120px; padding:0.4rem;"/>
+    <input type="text" id="flt_action" placeholder="Action (create/update/delete)" style="padding:0.4rem;"/>
+    <input type="text" id="flt_resource" placeholder="Resource Type (user, verification)" style="padding:0.4rem;"/>
+    <button class="btn" onclick="loadAudit()">Apply</button>
+    <button class="btn btn-secondary" onclick="clearAuditFilters()">Clear</button>
+  </div>
+  <div class="table-container">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>User ID</th>
+          <th>Action</th>
+          <th>Resource</th>
+          <th>Resource ID</th>
+          <th>Details</th>
+          <th>IP</th>
+          <th>Timestamp</th>
+        </tr>
+      </thead>
+      <tbody id="audit_tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .table { width:100%; border-collapse: collapse; }
+  .table th, .table td { border-bottom: 1px solid #e5e7eb; padding: 0.6rem 0.5rem; text-align: left; font-size: 0.92rem; }
+  .table thead th { position: sticky; top: 0; background: #f9fafb; z-index: 1; }
+  .table tbody tr:nth-child(odd) { background: #fafafa; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadAudit() {
+  const params = new URLSearchParams();
+  const uid = document.getElementById('flt_user_id').value.trim();
+  const act = document.getElementById('flt_action').value.trim();
+  const res = document.getElementById('flt_resource').value.trim();
+  if (uid) params.set('user_id', uid);
+  if (act) params.set('action', act);
+  if (res) params.set('resource_type', res);
+  const r = await fetch('/api/audit/logs?' + params.toString());
+  if (!r.ok) {
+    alert('Failed to load audit logs');
+    return;
+  }
+  const data = await r.json();
+  const tbody = document.getElementById('audit_tbody');
+  tbody.innerHTML = '';
+  for (const log of data.logs) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${log.id}</td>
+      <td>${log.user_id ?? ''}</td>
+      <td>${log.action}</td>
+      <td>${log.resource_type}</td>
+      <td>${log.resource_id ?? ''}</td>
+      <td><pre style="white-space:pre-wrap; margin:0;">${JSON.stringify(log.details || {}, null, 2)}</pre></td>
+      <td>${log.ip_address ?? ''}</td>
+      <td>${log.timestamp ? new Date(log.timestamp).toLocaleString() : ''}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function clearAuditFilters() {
+  document.getElementById('flt_user_id').value = '';
+  document.getElementById('flt_action').value = '';
+  document.getElementById('flt_resource').value = '';
+  loadAudit();
+}
+
+window.addEventListener('DOMContentLoaded', loadAudit);
+</script>
+{% endblock %}
